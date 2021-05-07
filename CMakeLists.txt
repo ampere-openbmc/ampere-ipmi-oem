@@ -88,6 +88,7 @@ add_library (zampoemcmds
              src/ipmi_to_redfish_hooks.cpp
              src/appcommands.cpp
              src/bridgingcommands.cpp
+             src/redfishhostinterface.cpp
              include/ipmi-whitelist.hpp)
 set_target_properties (zampoemcmds PROPERTIES VERSION "0.1.0")
 set_target_properties (zampoemcmds PROPERTIES SOVERSION "0")
