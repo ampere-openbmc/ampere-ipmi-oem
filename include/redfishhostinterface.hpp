@@ -17,40 +17,23 @@
 #pragma once
 #include <cstdint>
 
+bool bootstrapCtlDisable = false;
 constexpr uint8_t bootstrapAccLen = 32;
 constexpr uint8_t minPasswordSize = 9;
 constexpr uint8_t maxPasswordSize = 16;
 constexpr uint8_t maxUserNameSize = 16;
-constexpr uint8_t maxConsecutiveChars = 3;
+constexpr uint8_t maxUsers = 15;
 constexpr uint8_t disableUser = 0x00;
 constexpr uint8_t enableUser = 0x01;
 constexpr uint8_t defaultChannelNum = 0x1;
 constexpr uint8_t groupExtId = 0x52;
 constexpr uint8_t creBootstrapEnabled = 0xa5;
 constexpr uint8_t creBootstrapDisabled = 0x80;
-
-/** @struct RedfishHostInterfaceReq
- *
- *  Structure for get Redfish Host Authentication request command
- */
-struct RedfishHostInterfaceReq
-{
-    uint8_t bootstrapControl;
-} __attribute__((packed));
-
-/** @struct RedfishHostInterfaceResp
- *
- *  Structure for get Redfish Host Authentication response command
- */
-struct RedfishHostInterfaceResp
-{
-    uint8_t bootstrapAcc[bootstrapAccLen];
-} __attribute__((packed));
-
 namespace ipmi
 {
 namespace ampere
 {
+constexpr uint8_t groupExtIdRedfish = 0x52;
 constexpr uint8_t netFnDmtf = 0x2c;
 } // namespace ampere
 namespace general
