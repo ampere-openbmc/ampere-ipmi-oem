@@ -32,6 +32,19 @@ static inline auto responseFailure()
     return response(responseFail);
 }
 
+/** @brief implements warm reset thread
+ *  @param - None
+ *  @returns - None.
+ */
+static void *warmResetThreat(void* /*args*/)
+{
+    std::string cmd;
+    cmd = "systemctl default";
+    if (system(cmd.c_str()) == -1)
+        log<level::ERR>("The system method failed");
+    pthread_exit(NULL);
+}
+
 ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 {
     try
@@ -48,10 +61,40 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
     return ipmi::responseSuccess();
 }
 
+/** @brief implements warm reset commands
+ *  @param - None
+ *  @returns IPMI completion code.
+ */
+ipmi::RspType<> ipmiWarmReset()
+{
+    std::string cmd;
+    pthread_t threadID;
+    int ret;
+    try
+    {
+        ret = pthread_create(&threadID, NULL, warmResetThreat, NULL);
+        if(ret)
+        {
+            log<level::ERR>("pthread_create() error");
+        }
+    }
+    catch (std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseUnspecifiedError();
+    }
+
+    // Status code.
+    return ipmi::responseSuccess();
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
     ipmi::registerHandler(ipmi::prioOemBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSyncRtcTime,
                           ipmi::Privilege::User, ipmiSyncRTCTimeToBMC);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
+                          ipmi::app::cmdWarmReset, ipmi::Privilege::Admin,
+                          ipmiWarmReset);
 }
