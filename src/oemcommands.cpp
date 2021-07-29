@@ -91,10 +91,38 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
     return ipmi::responseSuccess();
 }
 
+ipmi::RspType<> ipmiDocmdConfigureUartSwitch(uint8_t consPort, uint8_t dirSw)
+{
+    try
+    {
+        std::string cmd = "";
+        /* Convert uint8 to string */
+        consPort = consPort + 1;
+        std::string nConsPort = std::to_string(consPort);
+        std::string nDirSw = std::to_string(dirSw);
+
+        /*
+        Do command /usr/sbin/ampere_uartmux_ctrl.sh <Console Port> <Direction>
+        Example of CPU console: ipmitool raw 0x3c 0xb0 0x00 0x01
+        */
+        cmd = "/usr/sbin/ampere_uartmux_ctrl.sh " + nConsPort + " " + nDirSw;
+        std::system(cmd.c_str());
+    }
+    catch(const std::exception& e)
+    {
+        return responseFailure();
+    }
+
+    return ipmi::responseSuccess();
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
     ipmi::registerHandler(ipmi::prioOemBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSyncRtcTime,
                           ipmi::Privilege::User, ipmiSyncRTCTimeToBMC);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdUartSW, ipmi::Privilege::User,
+                          ipmiDocmdConfigureUartSwitch);
 }
