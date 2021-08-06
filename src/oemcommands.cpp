@@ -45,12 +45,55 @@ static void *warmResetThreat(void* /*args*/)
     pthread_exit(NULL);
 }
 
+/** @brief execute a command and get the output of the command
+ *  @param[in] the command
+ *  @returns output of the command
+ */
+std::string exec(const char* cmd) {
+    char buffer[128];
+    std::string result = "";
+    /* Pipe stream from a command */
+    FILE* pipe = popen(cmd, "r");
+    if (!pipe) throw std::runtime_error("popen() failed!");
+    try {
+        /* Reads a line from the specified stream and stores it */
+        while (fgets(buffer, sizeof buffer, pipe) != NULL) {
+            result += buffer;
+        }
+    } catch (...) {
+        pclose(pipe);
+        throw;
+    }
+    /* Close a stream that was opened by popen() */
+    pclose(pipe);
+    return result;
+}
+
+/** @brief implements sync RTC time to BMC commands
+ *  @param - None
+ *  @returns IPMI completion code.
+ */
 ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 {
+    std::string cmd;
+    std::string cmdOutput;
     try
     {
-        /* Sync time from RTC to BMC using hwclock */
-        system("hwclock --hctosys");
+        /* Check the mode of NTP in the system, set the system time in case the
+         * NTP mode is disabled.
+         */
+        cmd = "systemctl status systemd-timesyncd.service | grep inactive";
+        cmdOutput = exec(cmd.c_str());
+        if (cmdOutput.empty())
+        {
+            log<level::INFO>("Can not set system time while the mode is NTP");
+            return responseFailure();
+        }
+        else
+        {
+            /* Sync time from RTC to BMC using hwclock */
+            system("hwclock --hctosys");
+        }
     }
     catch(const std::exception& e)
     {
