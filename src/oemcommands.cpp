@@ -178,8 +178,8 @@ auto ipmiDocmdScpReadRegisterMap(uint8_t cpuIndex, uint8_t offsetR)
         } else {
             return responseFailure();
         }
-        firstByte = (uint8_t)(addr & 0xff);
-        secondByte = (uint8_t)(addr >> 8);
+        firstByte = (uint8_t)(addr >> 8);
+        secondByte = (uint8_t)(addr & 0xff);
 
         return ipmi::responseSuccess(firstByte, secondByte);
     }
@@ -196,7 +196,7 @@ ipmi::RspType<> ipmiDocmdScpWriteRegisterMap(uint8_t cpuIndex, uint8_t offsetW, 
 {
     try
     {
-        uint16_t dataW =  ((uint16_t)secondData << 8) | (uint16_t)firstData;
+        uint16_t dataW =  ((uint16_t)firstData << 8) | (uint16_t)secondData;
         if (cpuIndex == 0) {
             scpWriteRegisterMap(scpRWPath[0], offsetW, dataW);
         } else if (cpuIndex == 1) {
@@ -228,5 +228,4 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdScpWrite, ipmi::Privilege::User,
                           ipmiDocmdScpWriteRegisterMap);
-
 }
