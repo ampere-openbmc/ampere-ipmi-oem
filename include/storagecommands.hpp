@@ -15,9 +15,9 @@
 */
 
 #pragma once
-#include <phosphor-ipmi-host/sensorhandler.hpp>
 
 #include <cstdint>
+#include <cstddef>
 
 static constexpr uint8_t ipmiSdrVersion = 0x51;
 
