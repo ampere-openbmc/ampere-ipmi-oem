@@ -137,7 +137,8 @@ ipmi::RspType<std::vector<uint8_t>> /* Output data */
                     }
                 }
                 /* Set user name */
-                ipmi::ipmiUserSetUserName(userId, (userName + std::to_string(userId)));
+                userName += std::to_string(userId);
+                ipmi::ipmiUserSetUserName(userId, userName);
                 /* Get the password length */
                 passwordLen = getPasswordLen();
                 do {
