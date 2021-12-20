@@ -21,6 +21,11 @@
 #include "oemcommands.hpp"
 #include <cstdlib>
 #include <boost/container/flat_map.hpp>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <iostream>
 
 using namespace phosphor::logging;
 
@@ -51,6 +56,16 @@ static inline auto response(uint8_t cc)
 static inline auto responseFailure()
 {
     return response(responseFail);
+}
+
+static inline auto responseInvalidFanNumber()
+{
+    return response(responseInvalidFanNum);
+}
+
+static inline auto responseSetFanErrorThermalCtlNotDisabled()
+{
+    return response(responseSetFanError);
 }
 
 /** @brief get Baseboard FRU's address
@@ -520,6 +535,152 @@ ipmi::RspType<uint8_t> ipmiDocmdSetMacAddress(std::vector<uint8_t> macAddress)
     return ipmi::responseSuccess(macAddress.size());
 }
 
+/** @brief implements check ampere_fanctrl.sh script is exist
+ *  @param - None
+ *  @returns IPMI completion code: 0x00: exist, 0x01: Not exist.
+ */
+static bool checkFanCtrlScriptExist()
+{
+    /* Check ampere_fanctrl.sh script is exist */
+    if (!access(fanCtrlScript.c_str(), F_OK))
+        return 0;
+    else
+        return 1;
+}
+
+/** @brief implements get fan status function
+ *  @param - None
+ *  @returns IPMI completion code: 0x00: enabled, 0x01: disabled
+ */
+static bool getFanStatus()
+{
+    std::string cmd;
+    std::string fanStt;
+
+    /* Check status of the fan service */
+    cmd = "ampere_fanctrl.sh getstatus";
+    fanStt = exec(cmd.c_str());
+    if (fanStt.compare("0") == 0)
+        return 0;
+    else
+        return 1;
+}
+
+/** @brief implements get fan status command
+ *  @param - None
+ *  @returns IPMI completion code: 0x00: enabled, 0x01: disabled
+ */
+ipmi::RspType<uint8_t> ipmiGetFanControlStatus()
+{
+    try
+    {
+        /* Check fan service is exist */
+        if (checkFanCtrlScriptExist() == responseEnabled)
+        {
+            /* Check status of the fan service */
+            if (getFanStatus() == responseEnabled)
+            {
+                /* The status of the fan service is active */
+                log<level::INFO>("Fan speed control is enabled");
+                return ipmi::responseSuccess(responseEnabled);
+            }
+            else
+            {
+                /* The status of the fan service is inactive */
+                log<level::INFO>("Fan speed control is disabled");
+                return ipmi::responseSuccess(responseDisabled);
+            }
+        }
+    }
+    catch(const std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseResponseError();
+    }
+}
+
+/** @brief implements set fan status command
+ *  @param - status 0x00: enabled, 0x01: disabled
+ *  @returns IPMI completion code: 0x00: enabled, 0x01: disabled
+ */
+ipmi::RspType<uint8_t> ipmiSetFanControlStatus(uint8_t status)
+{
+    std::string cmd;
+    try
+    {
+        /* Check ampere_fanctrl.sh script is exist */
+        if (checkFanCtrlScriptExist() == responseEnabled)
+        {
+            /* Enable/Disable the fan speed control */
+            log<level::INFO>("Enable/Disable Fan speed control service");
+            cmd = "ampere_fanctrl.sh setstatus " + std::to_string(status);
+            std::system(cmd.c_str());
+            return ipmi::responseSuccess(status);
+        }
+    }
+    catch(const std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseResponseError();
+    }
+}
+
+/** @brief implements set fan status command
+ *  @param - status 0x00: enabled, 0x01: disabled
+ *  @returns IPMI completion code: 0x00: enabled, 0x01: disabled
+ */
+ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
+{
+    std::string cmd = "";
+    std::string fanNumberStr;
+    std::string speedStr;
+
+    try
+    {
+        /* Check the fan number is valid */
+        if ((fanNumber < 0) || (fanNumber > 16))
+        {
+            log<level::ERR>("Invalid Fan number");
+            return responseInvalidFanNumber();
+        }
+
+        /* Check the PWM duty cycle is valid */
+        if ((speed < 1) || (speed > 100))
+        {
+            log<level::ERR>("Invalid PWM duty cycle");
+            return ipmi::responseUnspecifiedError();
+        }
+
+        /* Check the Fan speed control status */
+        if (getFanStatus() == responseEnabled)
+        {
+            log<level::ERR>("Can not set Fan speed because thermal control is "
+                            "not disabled");
+            return responseSetFanErrorThermalCtlNotDisabled();
+        }
+
+        /* Check ampere_fanctrl.sh script is exist */
+        if (checkFanCtrlScriptExist() == responseDisabled)
+        {
+            log<level::ERR>("ampere_fanctrl.sh script is not exist");
+            return ipmi::responseUnspecifiedError();
+        }
+
+        fanNumberStr = std::to_string(fanNumber);
+        speedStr = std::to_string(speed);
+        /* Call ampere_fanctrl.sh script for setting fan speed */
+        cmd = "ampere_fanctrl.sh setspeed " + fanNumberStr + " " + speedStr;
+        std::system(cmd.c_str());
+    }
+    catch(const std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseUnspecifiedError();
+    }
+
+    return ipmi::responseSuccess(responseEnabled);
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
@@ -538,4 +699,13 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdEditBmcMacAdr, ipmi::Privilege::User,
                           ipmiDocmdSetMacAddress);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdGetFanControlStatus,
+                          ipmi::Privilege::User, ipmiGetFanControlStatus);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetFanControlStatus,
+                          ipmi::Privilege::Admin, ipmiSetFanControlStatus);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetFanSpeed, ipmi::Privilege::Admin,
+                          ipmiSetFanSpeed);
 }
