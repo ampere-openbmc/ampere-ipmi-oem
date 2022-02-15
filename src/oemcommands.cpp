@@ -212,7 +212,7 @@ static bool updateMACAddInFRU(std::vector<uint8_t> &fruData, std::vector<uint8_t
          */
         if((fruData[fieldOffset] != 0xc1) && ((uint8_t)17 == (fruData[fieldOffset] & (uint8_t)0x3f)))
         {
-            sprintf(macAddressStr, "%X:%X:%X:%X:%X:%X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
+            sprintf(macAddressStr, "%02X:%02X:%02X:%02X:%02X:%02X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
 
             /*
              * Update 17 bytes of MAC address information
