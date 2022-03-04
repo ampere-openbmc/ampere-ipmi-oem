@@ -34,8 +34,8 @@ using FruObjectType = boost::container::flat_map<
         boost::container::flat_map<std::string, BasicVariantType>>>;
 
 static std::vector<std::string> scpRWPath =  {
-    "/sys/bus/i2c/devices/2-004f/1e78a0c0.i2c-bus:smpro@4f:misc/",
-    "/sys/bus/i2c/devices/2-004e/1e78a0c0.i2c-bus:smpro@4e:misc/"
+    "/sys/bus/platform/devices/smpro-misc.2.auto/",
+    "/sys/bus/platform/devices/smpro-misc.5.auto/",
 };
 
 constexpr static const char* fruDeviceServiceName =
