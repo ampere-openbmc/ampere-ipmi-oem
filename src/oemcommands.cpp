@@ -486,11 +486,18 @@ ipmi::RspType<uint8_t> ipmiDocmdSetMacAddress(std::vector<uint8_t> macAddress)
         return responseFailure();
     }
 
+#if defined(MAC_ADDRESS_FRU_BUS) && defined(MAC_ADDRESS_FRU_ADDR)
+    /* Set BUS and Address of FRU device that includes MAC address */
+    busIdx = MAC_ADDRESS_FRU_BUS;
+    addrss = MAC_ADDRESS_FRU_ADDR;
+#else
+    /* Calculate BUS and Address of FRU device that includes MAC address */
     if(!getBaseBoardFRUAddr(busIdx, addrss))
     {
         log<level::ERR>("Can not get the bus and address of baseboard FRU device");
         return responseFailure();
     }
+#endif
 
     if(!getRawFruData(busIdx, addrss, fruData))
     {
