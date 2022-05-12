@@ -686,18 +686,18 @@ void registerOEMFunctions()
 {
     ipmi::registerHandler(ipmi::prioOemBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSyncRtcTime,
-                          ipmi::Privilege::User, ipmiSyncRTCTimeToBMC);
+                          ipmi::Privilege::Admin, ipmiSyncRTCTimeToBMC);
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
-                          ipmi::general::cmdUartSW, ipmi::Privilege::User,
+                          ipmi::general::cmdUartSW, ipmi::Privilege::Admin,
                           ipmiDocmdConfigureUartSwitch);
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdScpRead, ipmi::Privilege::User,
                           ipmiDocmdScpReadRegisterMap);
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
-                          ipmi::general::cmdScpWrite, ipmi::Privilege::User,
+                          ipmi::general::cmdScpWrite, ipmi::Privilege::Admin,
                           ipmiDocmdScpWriteRegisterMap);
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
-                          ipmi::general::cmdEditBmcMacAdr, ipmi::Privilege::User,
+                          ipmi::general::cmdEditBmcMacAdr, ipmi::Privilege::Admin,
                           ipmiDocmdSetMacAddress);
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdGetFanControlStatus,
