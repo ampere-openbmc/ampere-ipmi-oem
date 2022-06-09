@@ -556,11 +556,13 @@ static bool getFanStatus()
 {
     std::string cmd;
     std::string fanStt;
+    uint8_t fanSttNum;
 
     /* Check status of the fan service */
     cmd = "ampere_fanctrl.sh getstatus";
     fanStt = exec(cmd.c_str());
-    if (fanStt.compare("0") == 0)
+    fanSttNum = std::stoi(fanStt);
+    if (!fanSttNum)
         return 0;
     else
         return 1;
