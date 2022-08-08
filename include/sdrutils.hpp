@@ -68,13 +68,13 @@ inline static bool getSensorSubtree(std::shared_ptr<SensorSubTree>& subtree)
         dbus,
         "type='signal',member='InterfacesAdded',arg0path='/xyz/openbmc_project/"
         "sensors/'",
-        [](sdbusplus::message::message& m) { sensorTreePtr.reset(); });
+        [](sdbusplus::message::message&) { sensorTreePtr.reset(); });
 
     static sdbusplus::bus::match::match sensorRemoved(
         dbus,
         "type='signal',member='InterfacesRemoved',arg0path='/xyz/"
         "openbmc_project/sensors/'",
-        [](sdbusplus::message::message& m) { sensorTreePtr.reset(); });
+        [](sdbusplus::message::message&) { sensorTreePtr.reset(); });
 
     bool sensorTreeUpdated = false;
     if (sensorTreePtr)
@@ -234,7 +234,7 @@ inline static uint8_t getSensorNumberFromPath(const std::string& path)
     }
 }
 
-inline static uint8_t getSensorEventTypeFromPath(const std::string& path)
+inline static uint8_t getSensorEventTypeFromPath()
 {
     // TODO: Add support for additional reading types as needed
     return 0x1; // reading type = threshold

@@ -39,7 +39,7 @@ static void toHexStr(const boost::beast::span<uint8_t> bytes,
     hexStr = stream.str();
 }
 
-static bool startRedfishHook(const SELData& selData, const std::string& ipmiRaw)
+static bool startRedfishHook(const SELData&, const std::string& ipmiRaw)
 {
     // No hooks handled the request, so let it go to default
     return defaultMessageHook(ipmiRaw);

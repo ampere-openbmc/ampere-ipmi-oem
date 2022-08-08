@@ -85,13 +85,12 @@ ipmi::RspType<std::vector<uint8_t>> /* Output data */
     ipmiOemAmpereCreBootstrap(ipmi::Context::ptr ctx, uint8_t bootstrapControl)
 {
     ipmi::ChannelInfo chInfo;
-    uint8_t maxChUsers = 0, enabledUsers = 0, fixedUsers = 0;
     std::string userName = "obmcRedfish"; /* Unique user name */
     std::string password;
     uint8_t passwordLen;
     char buffer[bootstrapAccLen] = {};
     uint8_t userId;
-    ipmi::PrivAccess privAccess = {0};
+    ipmi::PrivAccess privAccess = {};
     ipmi::UsersTbl* userData;
     std::vector<uint8_t> dataOut;
     uint8_t userCnt;
@@ -115,7 +114,7 @@ ipmi::RspType<std::vector<uint8_t>> /* Output data */
 
     /* Calculate the number of users in the system */
     userData = ipmi::getUserAccessObject().getUsersTblPtr();
-    for (size_t usrIndex = 1; usrIndex <= maxUsers; ++usrIndex) {
+    for (uint8_t usrIndex = 1; usrIndex <= maxUsers; ++usrIndex) {
         if (userData->user[usrIndex].userInSystem){
             userCnt++;
         }
@@ -128,7 +127,7 @@ ipmi::RspType<std::vector<uint8_t>> /* Output data */
                 /* Find the user ID empty to set the user name
                  * User index 1 is reserved for root user, starts with 2
                  */
-                for (size_t usrIndex = 2; usrIndex <= (userCnt + 1); ++usrIndex) {
+                for (uint8_t usrIndex = 2; usrIndex <= (userCnt + 1); ++usrIndex) {
                     std::string curName =
                         reinterpret_cast<char*>(userData->user[usrIndex].userName);
                     if (curName.empty()) {

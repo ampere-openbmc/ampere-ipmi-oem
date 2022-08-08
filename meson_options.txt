@@ -1,0 +1,2 @@
+option('mac_address_fru_bus', type : 'integer', value : 0)
+option('mac_address_fru_addr', type : 'integer', value : 0)

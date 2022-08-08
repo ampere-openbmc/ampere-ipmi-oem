@@ -96,12 +96,6 @@ namespace storage
 constexpr static const uint8_t deassertionEvent = 0x80;
 
 static std::vector<uint8_t> fruCache;
-static uint8_t cacheBus = 0xFF;
-static uint8_t cacheAddr = 0XFF;
-static uint8_t lastDevId = 0xFF;
-
-static uint8_t writeBus = 0xFF;
-static uint8_t writeAddr = 0XFF;
 
 std::unique_ptr<phosphor::Timer> writeTimer = nullptr;
 
@@ -424,7 +418,7 @@ ipmi::RspType<uint16_t, // Next Record ID
             // Get the sensor type, sensor number, and event type for the sensor
             sensorType = getSensorTypeFromPath(sensorPath);
             sensorNum = getSensorNumberFromPath(sensorPath);
-            eventType = getSensorEventTypeFromPath(sensorPath);
+            eventType = getSensorEventTypeFromPath();
 
             // Get the event direction
             try
@@ -505,7 +499,7 @@ ipmi::RspType<uint16_t> ipmiStorageAddSELEntry(
     return ipmi::responseSuccess(responseID);
 }
 
-ipmi::RspType<uint8_t> ipmiStorageClearSEL(ipmi::Context::ptr ctx,
+ipmi::RspType<uint8_t> ipmiStorageClearSEL(ipmi::Context::ptr,
                                            uint16_t reservationID,
                                            const std::array<uint8_t, 3>& clr,
                                            uint8_t eraseOperation)

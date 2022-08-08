@@ -72,8 +72,8 @@ std::size_t Bridging::getResponseQueueSize()
 ipmi::RspType<> ipmiAppClearMessageFlags(ipmi::Context::ptr ctx,
                                          bool receiveMessage,
                                          bool eventMsgBufFull, bool reserved2,
-                                         bool watchdogTimeout, bool reserved1,
-                                         bool oem0, bool oem1, bool oem2)
+                                         bool, bool reserved1,
+                                         bool, bool, bool)
 {
     ipmi::ChannelInfo chInfo;
 

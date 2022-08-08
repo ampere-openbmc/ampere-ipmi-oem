@@ -72,7 +72,7 @@ static inline auto responseSetFanErrorThermalCtlNotDisabled()
  *  @param - busIdx, address of I2C device
  *  @returns - true if successfully, false if fail
  */
-static bool getBaseBoardFRUAddr(uint8_t &busIdx, uint8_t &addr)
+[[maybe_unused]] static bool getBaseBoardFRUAddr(uint8_t &busIdx, uint8_t &addr)
 {
     bool retVal = false;
     sd_bus* bus = NULL;
@@ -342,6 +342,7 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 {
     std::string cmd;
     std::string cmdOutput;
+    int ret;
     try
     {
         /* Check the mode of NTP in the system, set the system time in case the
@@ -357,7 +358,11 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
         else
         {
             /* Sync time from RTC to BMC using hwclock */
-            system("hwclock --hctosys");
+            ret = system("hwclock --hctosys");
+            if (ret == -1)
+            {
+                log<level::ERR>("Can not set system time");
+            }
         }
     }
     catch(const std::exception& e)
@@ -371,6 +376,7 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 
 ipmi::RspType<> ipmiDocmdConfigureUartSwitch(uint8_t consPort, uint8_t dirSw)
 {
+    int ret;
     try
     {
         std::string cmd = "";
@@ -384,7 +390,11 @@ ipmi::RspType<> ipmiDocmdConfigureUartSwitch(uint8_t consPort, uint8_t dirSw)
         Example of CPU console: ipmitool raw 0x3c 0xb0 0x00 0x01
         */
         cmd = "/usr/sbin/ampere_uartmux_ctrl.sh " + nConsPort + " " + nDirSw;
-        std::system(cmd.c_str());
+        ret = std::system(cmd.c_str());
+        if (ret == -1)
+        {
+            log<level::ERR>("Can not config UART switch");
+        }
     }
     catch(const std::exception& e)
     {
@@ -403,10 +413,15 @@ uint16_t scpReadRegisterMap(std::string path, uint8_t offsetR)
     std::string cmd = "";
     std::string addrInStr;
     uint16_t addrInt;
+    int ret;
 
     std::string nOffsetR = std::to_string(offsetR);
     cmd = "echo " + nOffsetR + " > " + path + "reg_addr";
-    std::system(cmd.c_str());
+    ret = std::system(cmd.c_str());
+    if (ret == -1)
+    {
+        log<level::ERR>("Can not read register map");
+    }
     cmd = "cat " + path + "reg_rw";
     // Convert string to uint16_t
     addrInStr = exec(cmd.c_str());
@@ -421,13 +436,22 @@ uint16_t scpReadRegisterMap(std::string path, uint8_t offsetR)
  */
 static void scpWriteRegisterMap(std::string path, uint8_t offsetW, uint16_t dataW)
 {
+    int ret;
     std::string cmd = "";
     std::string nOffsetW = std::to_string(offsetW);
     std::string nDataW = std::to_string(dataW);
     cmd = "echo " + nOffsetW + " > " + path + "reg_addr";
-    std::system(cmd.c_str());
+    ret = std::system(cmd.c_str());
+    if (ret == -1)
+    {
+        log<level::ERR>("Can not write register map");
+    }
     cmd = "echo " + nDataW + " > " + path + "reg_rw";
-    std::system(cmd.c_str());
+    ret = std::system(cmd.c_str());
+    if (ret == -1)
+    {
+        log<level::ERR>("Can not write register map");
+    }
 }
 
 /** @brief implements ipmi oem command read scp register
@@ -599,6 +623,8 @@ ipmi::RspType<uint8_t> ipmiGetFanControlStatus()
         log<level::ERR>(e.what());
         return ipmi::responseResponseError();
     }
+
+    return ipmi::responseSuccess();
 }
 
 /** @brief implements set fan status command
@@ -608,6 +634,7 @@ ipmi::RspType<uint8_t> ipmiGetFanControlStatus()
 ipmi::RspType<uint8_t> ipmiSetFanControlStatus(uint8_t status)
 {
     std::string cmd;
+    int ret;
     try
     {
         /* Check ampere_fanctrl.sh script is exist */
@@ -616,7 +643,11 @@ ipmi::RspType<uint8_t> ipmiSetFanControlStatus(uint8_t status)
             /* Enable/Disable the fan speed control */
             log<level::INFO>("Enable/Disable Fan speed control service");
             cmd = "ampere_fanctrl.sh setstatus " + std::to_string(status);
-            std::system(cmd.c_str());
+            ret = std::system(cmd.c_str());
+            if (ret == -1)
+            {
+                log<level::ERR>("Can not set fan control status");
+            }
             return ipmi::responseSuccess(status);
         }
     }
@@ -625,6 +656,8 @@ ipmi::RspType<uint8_t> ipmiSetFanControlStatus(uint8_t status)
         log<level::ERR>(e.what());
         return ipmi::responseResponseError();
     }
+
+    return ipmi::responseSuccess();
 }
 
 /** @brief implements set fan status command
@@ -636,11 +669,12 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
     std::string cmd = "";
     std::string fanNumberStr;
     std::string speedStr;
+    int ret;
 
     try
     {
         /* Check the fan number is valid */
-        if ((fanNumber < 0) || (fanNumber > 16))
+        if (fanNumber > 16)
         {
             log<level::ERR>("Invalid Fan number");
             return responseInvalidFanNumber();
@@ -672,7 +706,11 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
         speedStr = std::to_string(speed);
         /* Call ampere_fanctrl.sh script for setting fan speed */
         cmd = "ampere_fanctrl.sh setspeed " + fanNumberStr + " " + speedStr;
-        std::system(cmd.c_str());
+        ret = std::system(cmd.c_str());
+        if (ret == -1)
+        {
+            log<level::ERR>("Can not set fan speed");
+        }
     }
     catch(const std::exception& e)
     {
