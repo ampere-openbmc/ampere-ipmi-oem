@@ -17,16 +17,17 @@
 #pragma once
 #include <cstdint>
 
-bool bootstrapCtlDisable = false;
+std::string service = "xyz.openbmc_project.User.Manager";
+std::string object = "/xyz/openbmc_project/user/root";
+std::string inf = "xyz.openbmc_project.HostInterface.CredentialBootstrapping";
+
 constexpr uint8_t bootstrapAccLen = 32;
 constexpr uint8_t minPasswordSize = 9;
 constexpr uint8_t maxPasswordSize = 16;
 constexpr uint8_t maxUserNameSize = 16;
 constexpr uint8_t maxUsers = 15;
-constexpr uint8_t disableUser = 0x00;
 constexpr uint8_t enableUser = 0x01;
 constexpr uint8_t defaultChannelNum = 0x1;
-constexpr uint8_t groupExtId = 0x52;
 constexpr uint8_t creBootstrapEnabled = 0xa5;
 constexpr uint8_t creBootstrapDisabled = 0x80;
 namespace ipmi
@@ -34,7 +35,6 @@ namespace ipmi
 namespace ampere
 {
 constexpr uint8_t groupExtIdRedfish = 0x52;
-constexpr uint8_t netFnDmtf = 0x2c;
 } // namespace ampere
 namespace general
 {

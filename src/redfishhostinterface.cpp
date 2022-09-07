@@ -32,7 +32,7 @@ static inline auto response(uint8_t cc)
     return std::make_tuple(cc, std::nullopt);
 }
 
-static inline auto responseParmNotSupported()
+static inline auto responseCredentialBootstrappingDisabled()
 {
     return response(creBootstrapDisabled);
 }
@@ -76,6 +76,47 @@ uint8_t getPasswordLen()
     return distr(gen);
 }
 
+/** @brief implementes the get CredentialBootstrapping's Enabled property
+ *  @param[in] none
+ *  @returns 1 - enabled, 0 - disabled
+ */
+bool getCredentialBootstrapEnabledProperty()
+{
+    bool ret = false;
+    auto bus = getSdBus();
+    try
+    {
+        ipmi::Value bootstrapProperty =
+            ipmi::getDbusProperty(*bus, service, object, inf,
+                                  "Enabled");
+        ret = std::get<bool>(bootstrapProperty);
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>("getCredentialBootstrapEnabledProperty: can't get property");
+    }
+
+    return ret;
+}
+
+/** @brief implementes the set CredentialBootstrapping's Enabled property
+ *  @param[in] true - enabled, false - disabled
+ *  @returns none
+ */
+void setCredentialBootstrapEnabledProperty(bool pValue)
+{
+    auto bus = getSdBus();
+    try
+    {
+        ipmi::setDbusProperty(*bus, service, object, inf,
+                              "Enabled", pValue);
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>("setCredentialBootstrapEnabledProperty: can't set property");
+    }
+}
+
 /** @brief implementes the get redfish host authentication command
  *  @param[in] ctx - shared_ptr to an IPMI context struct
  *  @param[in] bootstrapControl - Disable credential bootstrapping control
@@ -112,58 +153,67 @@ ipmi::RspType<std::vector<uint8_t>> /* Output data */
         return ipmi::responseCommandNotAvailable();
     }
 
-    /* Calculate the number of users in the system */
+    /* Get Enabled property within the CredentialBootstrapping property of the
+     * host interface. */
+    if (getCredentialBootstrapEnabledProperty() == false)
+    {
+        log<level::ERR>("Enabled property within the CredentialBootstrapping "
+            "property of the host interface is false");
+        return responseCredentialBootstrappingDisabled();
+    }
+
+    /* Find the user ID empty to set the user name */
     userData = ipmi::getUserAccessObject().getUsersTblPtr();
-    for (uint8_t usrIndex = 1; usrIndex <= maxUsers; ++usrIndex) {
-        if (userData->user[usrIndex].userInSystem){
+    for (uint8_t usrIndex = 1; usrIndex <= maxUsers; ++usrIndex)
+    {
+        if (userData->user[usrIndex].userInSystem)
+        {
             userCnt++;
         }
-    }
-    if (userCnt < maxUsers) {
-        if(bootstrapControl == creBootstrapEnabled) {
-            if(bootstrapCtlDisable) {
-                return responseParmNotSupported();
-            } else {
-                /* Find the user ID empty to set the user name
-                 * User index 1 is reserved for root user, starts with 2
-                 */
-                for (uint8_t usrIndex = 2; usrIndex <= (userCnt + 1); ++usrIndex) {
-                    std::string curName =
-                        reinterpret_cast<char*>(userData->user[usrIndex].userName);
-                    if (curName.empty()) {
-                        userId = usrIndex;
-                        break;
-                    }
-                }
-                /* Set user name */
-                userName += std::to_string(userId);
-                ipmi::ipmiUserSetUserName(userId, userName);
-                /* Get the password length */
-                passwordLen = getPasswordLen();
-                do {
-                    /* Generate and set the password until pass the password policy */
-                    password = getRandomPassword(passwordLen);
-                } while (ipmi::ipmiUserSetUserPassword(userId, password.c_str()) != 0);
-                /* Set user priv */
-                privAccess.privilege = PRIVILEGE_ADMIN;
-                ipmi::ipmiUserSetPrivilegeAccess(
-                    static_cast<uint8_t>(userId), defaultChannelNum, privAccess, 0);
-                /* Enable user */
-                ipmi::ipmiUserUpdateEnabledState(userId, enableUser);
-            }
-        } else {
-            bootstrapCtlDisable = true;
-            return responseParmNotSupported();
+        else
+        {
+            userId = usrIndex;
+            break;
         }
-    } else {
+    }
+    if (userCnt < maxUsers)
+    {
+        /* Set user name */
+        userName += std::to_string(userId);
+        ipmi::ipmiUserSetUserName(userId, userName);
+        /* Get the password length */
+        passwordLen = getPasswordLen();
+        do {
+            /* Generate and set the password until pass the password policy */
+            password = getRandomPassword(passwordLen);
+        } while (ipmi::ipmiUserSetUserPassword(userId, password.c_str()) != 0);
+        /* Set user priv */
+        privAccess.privilege = PRIVILEGE_ADMIN;
+        ipmi::ipmiUserSetPrivilegeAccess(static_cast<uint8_t>(userId),
+                                            defaultChannelNum, privAccess, 0);
+        /* Enable user */
+        ipmi::ipmiUserUpdateEnabledState(userId, enableUser);
+    } else
+    {
         log<level::ERR>("Invalid User ID - Out of range");
-        return responseParmNotSupported();
+        return ipmi::responseParmOutOfRange();
     }
 
     /* Respond data */
     memcpy(buffer, userName.c_str(), userName.length());
     memcpy(buffer + maxPasswordSize, password.c_str(), password.length());
     dataOut.assign(buffer, buffer + bootstrapAccLen);
+
+    if (bootstrapControl != creBootstrapEnabled)
+    {
+        log<level::INFO>("Enabled property within the CredentialBootstrapping "
+            "property of the host interface resource shall be set to false");
+        setCredentialBootstrapEnabledProperty(false);
+    }
+    else
+    {
+        log<level::INFO>("Keep credential bootstrapping enabled");
+    }
 
     return ipmi::responseSuccess(dataOut);
 }
