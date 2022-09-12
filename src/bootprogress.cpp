@@ -39,58 +39,6 @@ static inline auto responseParmNotSupported()
     return response(commandCompletedError);
 }
 
-/** @brief Sets the property value of the given object.
- *  @param[in] bus - DBUS Bus Object.
- *  @param[in] service - Dbus service name.
- *  @param[in] objPath - Dbus object path.
- *  @param[in] interface - Dbus interface.
- *  @param[in] property - name of the property.
- *  @param[in] value - value which needs to be set.
- *  @param[out] - none
- */
-void setProperty(sdbusplus::bus::bus& bus, const std::string& busName,
-                const std::string& objPath, const std::string& interface,
-                const std::string& property, const postcodeData& value)
-{
-    std::variant<postcodeData> variantValue = value;
-    try
-    {
-        auto methodCall = bus.new_method_call(
-            busName.c_str(), objPath.c_str(), PROPERTY_INTERFACE, "Set");
-
-        methodCall.append(interface, property, variantValue);
-        auto reply = bus.call(methodCall);
-    }
-    catch (const std::exception& e)
-    {
-        log<level::ERR>("Set properties fail.",
-                        entry("ERROR = %s", e.what()),
-                        entry("Object path = %s", objPath.c_str()));
-        return;
-    }
-}
-
-/** @brief Sets the boot progress Post code.
- *  @param[in] state - The post code value
- *  @param[out] - none
- */
-void setProgressPostCode(uint64_t state)
-{
-    postcodeData pcData{state, {}};
-    auto bus = getSdBus();
-    try
-    {
-        std::string service = "xyz.openbmc_project.State.Boot.Raw";
-        std::string object = "/xyz/openbmc_project/state/boot/raw0";
-        std::string inf = "xyz.openbmc_project.State.Boot.Raw";
-        setProperty(*bus, service, object, inf, "Value", pcData);
-    }
-    catch (const std::exception& e)
-    {
-        log<level::ERR>("setProgressPostCode: can't set property");
-    }
-}
-
 /** @brief Update the Redfish BootProgress.LastState property
  *  @param[in] s - The LastState value
  *  @param[out] - none
@@ -213,8 +161,6 @@ ipmi::RspType<uint8_t>
 {
     ipmi::ChannelInfo chInfo;
     std::stringstream stream;
-    std::vector<uint8_t> bpdataIn;
-    uint64_t bpdataOut = 0;
     std::string bpRecordStr;
     std::string message;
 
@@ -241,6 +187,12 @@ ipmi::RspType<uint8_t>
         storeBootProgressFile(codeType, reserved1st, reserved2nd, severity,
                               operation1st, operation2nd, subClass, codeClass,
                               instance);
+
+        /* Get boot progress code record to string format */
+        bpRecordStr = bootProgressRecordtoStr(codeType, reserved1st,
+                                              reserved2nd, severity,
+                                              operation1st, operation2nd,
+                                              subClass, codeClass, instance);
 
         /* Create EventLog in case byte 1st is ERROR_CODE */
         if(codeType == ERROR_CODE)
@@ -293,14 +245,17 @@ ipmi::RspType<uint8_t>
                 return responseParmNotSupported();
             }
         }
-
-        /* Create POST codes */
-        bpdataIn = {codeType, severity, operation1st, operation2nd, subClass,
-                    codeClass, instance};
-
-        for(auto i : bpdataIn)
-            bpdataOut = ((bpdataOut << 8) + i);
-        setProgressPostCode(bpdataOut);
+        else /* Create Ampere OK event in case byte 1st is PROGRESS_CODE */
+        {
+            stream.str("");
+            std::string bpRecordEventLogStr = "Boot progress code: " + bpRecordStr;
+            stream << bpRecordEventLogStr << std::endl;
+            message = stream.str();
+            std::string redfishMsgId("OpenBMC.0.1.AmpereEvent.OK");
+            sd_journal_send("REDFISH_MESSAGE_ID=%s", redfishMsgId.c_str(),
+                            "REDFISH_MESSAGE_ARGS=%s", message.c_str(),
+                            NULL);
+        }
 
         /* Adding to d-bus for support Redfish report
          * Update boot progress to Redfish's LastState attribute to OEM or
@@ -317,12 +272,6 @@ ipmi::RspType<uint8_t>
             updateProgressLaststateDbus("PCIInit");
         else
             updateProgressLaststateDbus("OEM");
-
-        /* Get boot progress code record to string format */
-        bpRecordStr = bootProgressRecordtoStr(codeType, reserved1st,
-                                              reserved2nd, severity,
-                                              operation1st, operation2nd,
-                                              subClass, codeClass, instance);
 
         /* Update the boot progress record to BootProgress.OemLastState
          * property to the 9-byte hex values of the boot progress code record.

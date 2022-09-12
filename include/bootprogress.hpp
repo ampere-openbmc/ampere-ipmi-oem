@@ -32,8 +32,6 @@ using namespace phosphor::logging;
 #define BASE 16
 #define ERROR_CODE 0x02
 
-using postcodeData = std::tuple<uint64_t, std::vector<uint8_t>>;
-
 std::string hostProcessorEC[14] =
     {
         "Invalid type",
@@ -63,7 +61,6 @@ namespace ipmi
 namespace ampere
 {
 constexpr uint8_t groupExtIpmi = 0xae;
-constexpr uint8_t netFnSbmr = 0x2c;
 } // namespace ampere
 namespace general
 {
