@@ -50,7 +50,12 @@ std::string hostProcessorEC[14] =
         "No matching microcode update",
     };
 
-constexpr auto PROPERTY_INTERFACE = "org.freedesktop.DBus.Properties";
+std::string bpService = "xyz.openbmc_project.State.Host";
+std::string bpObject = "/xyz/openbmc_project/state/host0";
+std::string bpInf = "xyz.openbmc_project.State.Boot.Progress";
+std::string timeMngservice = "xyz.openbmc_project.Time.Manager";
+std::string timeObject = "/xyz/openbmc_project/time/bmc";
+std::string timeInf = "xyz.openbmc_project.Time.EpochTime";
 std::string bootProgressFs = "/var/lib/bootprogress";
 
 constexpr uint8_t commandCompletedError = 0x80;

@@ -39,6 +39,25 @@ static inline auto responseParmNotSupported()
     return response(commandCompletedError);
 }
 
+uint64_t getCurrentTime()
+{
+    uint64_t t = 0;
+    auto bus = getSdBus();
+    try
+    {
+        ipmi::Value variant = ipmi::getDbusProperty(*bus, timeMngservice,
+                                                    timeObject, timeInf,
+                                                    "Elapsed");
+        t = std::get<uint64_t>(variant);
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>("getCurrentTime: can't get property");
+    }
+
+    return t;
+}
+
 /** @brief Update the Redfish BootProgress.LastState property
  *  @param[in] s - The LastState value
  *  @param[out] - none
@@ -48,12 +67,9 @@ void updateProgressLaststateDbus(std::string s)
     auto bus = getSdBus();
     try
     {
-        std::string service = "xyz.openbmc_project.State.Host";
-        std::string object = "/xyz/openbmc_project/state/host0";
-        std::string inf = "xyz.openbmc_project.State.Boot.Progress";
         std::string bpValue =
             "xyz.openbmc_project.State.Boot.Progress.ProgressStages." + s;
-        ipmi::setDbusProperty(*bus, service, object, inf, "BootProgress",
+        ipmi::setDbusProperty(*bus, bpService, bpObject, bpInf, "BootProgress",
                               bpValue);
     }
     catch (const std::exception& e)
@@ -71,14 +87,30 @@ void updateProgressOemLaststateDbus(std::string s)
     auto bus = getSdBus();
     try
     {
-        std::string service = "xyz.openbmc_project.State.Host";
-        std::string object = "/xyz/openbmc_project/state/host0";
-        std::string inf = "xyz.openbmc_project.State.Boot.Progress";
-        ipmi::setDbusProperty(*bus, service, object, inf, "BootProgressOem", s);
+        ipmi::setDbusProperty(*bus, bpService, bpObject, bpInf,
+                              "BootProgressOem", s);
     }
     catch (const std::exception& e)
     {
         log<level::ERR>("updateProgressOemLaststateDbus: can't set property");
+    }
+}
+
+/** @brief Update the Redfish BootProgress.BootProgressLastUpdate property
+ *  @param[in] t - The BootProgressLastUpdate value
+ *  @param[out] - none
+ */
+void updateProgressLastStateTimeDbus(uint64_t t)
+{
+    auto bus = getSdBus();
+    try
+    {
+        ipmi::setDbusProperty(*bus, bpService, bpObject, bpInf,
+                              "BootProgressLastUpdate", t);
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>("updateProgressLastStateTimeDbus: can't set property");
     }
 }
 
@@ -163,6 +195,7 @@ ipmi::RspType<uint8_t>
     std::stringstream stream;
     std::string bpRecordStr;
     std::string message;
+    uint64_t lastStateTime = 0;
 
     try {
         getChannelInfo(ctx->channel, chInfo);
@@ -277,6 +310,14 @@ ipmi::RspType<uint8_t>
          * property to the 9-byte hex values of the boot progress code record.
          */
         updateProgressOemLaststateDbus(bpRecordStr);
+
+        /* Get the BMC's current time*/
+        lastStateTime = getCurrentTime();
+        /* Update the boot progress record to BootProgress.LastStateTime
+         * This property shall contain the date and time when the last boot
+         * state was updated.
+         */
+        updateProgressLastStateTimeDbus(lastStateTime);
     }
     catch(const std::exception& e)
     {
