@@ -37,6 +37,11 @@ static inline auto responseCredentialBootstrappingDisabled()
     return response(creBootstrapDisabled);
 }
 
+static inline auto responseCertNumberInvalid()
+{
+    return response(certificateNumberInvalid);
+}
+
 /** @brief implementes the get random password
  *  @param[in] len - length of password.
  *  @returns password
@@ -218,6 +223,121 @@ ipmi::RspType<std::vector<uint8_t>> /* Output data */
     return ipmi::responseSuccess(dataOut);
 }
 
+/** @brief implementes the get manager certificate fingerprint command
+ *  @param[in] ctx - shared_ptr to an IPMI context struct
+ *  @param[in] certNum - Certificate number
+ *  @returns ipmi completion code.
+ */
+ipmi::RspType<std::vector<uint8_t>> /* Output data */
+    ipmiHostInfCertificateFingerprint(ipmi::Context::ptr ctx, uint8_t certNum)
+{
+    ipmi::ChannelInfo chInfo;
+    FILE *fp = NULL;
+    char asciiStr[MAX_ASCII_CERT_LEN] = {0};
+    char *certValue = NULL;
+    char ascii_val[3] = {0};
+    char cmd[MAX_ASCII_CERT_LEN] = {0};
+    int certIdx = 1, ret = 0;
+    uint8_t MngTLScertificate[MAX_CERT_LEN];
+    std::vector<uint8_t> dataOut;
+
+    try {
+        getChannelInfo(ctx->channel, chInfo);
+    }
+    catch (sdbusplus::exception_t& e) {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ipmiHostInfCertificateFingerprint: Failed to get Channel Info",
+            phosphor::logging::entry("MSG: %s", e.description()));
+        return ipmi::responseUnspecifiedError();
+    }
+    if (chInfo.mediumType !=
+        static_cast<uint8_t>(ipmi::EChannelMediumType::smbusV20)) {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ipmiHostInfCertificateFingerprint: Error - supported only in SSIF "
+            "interface");
+        return ipmi::responseCommandNotAvailable();
+    }
+
+    /* Check the certificate number, 1 based */
+    if (certNum != 1)
+    {
+        log<level::ERR>("Certificate number is invalid");
+        return responseCertNumberInvalid();
+    }
+
+    /* Get Enabled property within the CredentialBootstrapping property of the
+     * host interface.
+     */
+    if (getCredentialBootstrapEnabledProperty() == false)
+    {
+        log<level::ERR>("Enabled property within the CredentialBootstrapping "
+            "property of the host interface is false");
+        return responseCredentialBootstrappingDisabled();
+    }
+
+    /* Create the certificate fingerprint command
+     * https://community.rsa.com/t5/securid-knowledge-base/how-to-view-a-
+     * certificate-fingerprint-as-sha-256-sha-1-or-md5/ta-p/4230
+     */
+    ret = snprintf(cmd, sizeof(cmd), "%s x509 -noout -fingerprint -sha256 "
+                   "-inform pem -in %s > %s", OPENSSL_PATH, CERT_FILE,
+                   CERT_FINGERPRINT_FILE);
+    if (ret <= 0)
+    {
+        log<level::ERR>("Certificate fingerprint command failed");
+        return ipmi::responseUnspecifiedError();
+    }
+    /* Run the commands to view the certificate fingerprint */
+    ret = system(cmd);
+    if (ret < 0)
+    {
+        log<level::ERR>("Certificate fingerprint command execute failed");
+        return ipmi::responseUnspecifiedError();
+    }
+    /* Open the certificate file */
+    fp = fopen(CERT_FINGERPRINT_FILE, "r");
+    if (fp == NULL)
+    {
+        log<level::ERR>("Can not open certificate file");
+        return ipmi::responseUnspecifiedError();
+    }
+
+    /* Get the certificate from file */
+    if (fgets(asciiStr, MAX_ASCII_CERT_LEN, fp) == NULL)
+    {
+        log<level::ERR>("Can not get the certificate from file");
+        return ipmi::responseUnspecifiedError();
+    }
+
+    /* The response data is:
+     * byte 1: completion code
+     * byte 2: Group extension identification (52h)
+     * byte 3: Fingerprint hash algorithm, 01h: SHA-256
+     * byte 4:N: Fingerprint of the manager's TLS certificate, 32 bytes
+     */
+    MngTLScertificate[0] = 0x01; /* Set byte 3 to 01h for the SHA-256 */
+    /* The certificate file is example:
+     * sha256 Fingerprint=7F:41:1B:56:70:9C:85:33:C7:9A:C5:80:23:64:26:28:22:
+     * 39:EA:99:DF:B0:F2:57:07:A7:E6:EB:70:09:41:E9
+     * Get the certificate data, right after the '=' character and remove ':'
+     * character from the certificate string
+     */
+    for(certValue = strchr(asciiStr, '=');
+                           certValue != NULL && certIdx < MAX_CERT_LEN;
+                           certValue = strchr(certValue + 1, ':'), certIdx++)
+    {
+        ascii_val[0] = certValue[1];
+        ascii_val[1] = certValue[2];
+        MngTLScertificate[certIdx] = strtol(ascii_val, NULL, BASE);
+    }
+    fclose(fp);
+
+    /* Respond data */
+    dataOut.assign(MngTLScertificate, MngTLScertificate + MAX_CERT_LEN);
+
+    return ipmi::responseSuccess(dataOut);
+}
+
 void registerOemAmpereFunctions() __attribute__((constructor));
 void registerOemAmpereFunctions()
 {
@@ -226,4 +346,9 @@ void registerOemAmpereFunctions()
                                ipmi::general::cmdGetBootstrapAccoutCre,
                                ipmi::Privilege::User,
                                ipmiOemAmpereCreBootstrap);
+    ipmi::registerGroupHandler(ipmi::prioOpenBmcBase,
+                               ipmi::ampere::groupExtIdRedfish,
+                               ipmi::general::cmdGetMngCertFingerprint,
+                               ipmi::Privilege::User,
+                               ipmiHostInfCertificateFingerprint);
 }
