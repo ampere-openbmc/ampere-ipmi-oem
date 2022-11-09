@@ -22,6 +22,7 @@
 constexpr uint8_t responseEnabled = 0x00;
 constexpr uint8_t responseFail = 0x01;
 constexpr uint8_t responseDisabled = 0x01;
+constexpr uint8_t fileNotExists = 0x01;
 constexpr uint8_t responseInvalidFanNum = 0x01;
 constexpr uint8_t responseSetFanError = 0x02;
 std::string fanCtrlScript = "/usr/sbin/ampere_fanctrl.sh";

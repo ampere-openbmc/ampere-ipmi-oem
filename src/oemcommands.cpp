@@ -579,14 +579,12 @@ static bool checkFanCtrlScriptExist()
 static bool getFanStatus()
 {
     std::string cmd;
-    std::string fanStt;
-    uint8_t fanSttNum;
+    int fanStt;
 
     /* Check status of the fan service */
     cmd = "ampere_fanctrl.sh getstatus";
-    fanStt = exec(cmd.c_str());
-    fanSttNum = std::stoi(fanStt);
-    if (!fanSttNum)
+    fanStt = system(cmd.c_str());
+    if (WEXITSTATUS(fanStt) == 0)
         return 0;
     else
         return 1;
@@ -600,22 +598,24 @@ ipmi::RspType<uint8_t> ipmiGetFanControlStatus()
 {
     try
     {
-        /* Check fan service is exist */
-        if (checkFanCtrlScriptExist() == responseEnabled)
+        /* Check ampere_fanctrl.sh script is exist */
+        if (checkFanCtrlScriptExist() == fileNotExists)
         {
-            /* Check status of the fan service */
-            if (getFanStatus() == responseEnabled)
-            {
-                /* The status of the fan service is active */
-                log<level::INFO>("Fan speed control is enabled");
-                return ipmi::responseSuccess(responseEnabled);
-            }
-            else
-            {
-                /* The status of the fan service is inactive */
-                log<level::INFO>("Fan speed control is disabled");
-                return ipmi::responseSuccess(responseDisabled);
-            }
+            log<level::ERR>("Error: ampere_fanctrl.sh script is not exist");
+            return ipmi::responseUnspecifiedError();
+        }
+        /* Check status of the fan service */
+        if (getFanStatus() == responseEnabled)
+        {
+            /* The status of the fan service is active */
+            log<level::INFO>("Fan speed control is enabled");
+            return ipmi::responseSuccess(responseEnabled);
+        }
+        else
+        {
+            /* The status of the fan service is inactive */
+            log<level::INFO>("Fan speed control is disabled");
+            return ipmi::responseSuccess(responseDisabled);
         }
     }
     catch(const std::exception& e)
@@ -638,18 +638,21 @@ ipmi::RspType<uint8_t> ipmiSetFanControlStatus(uint8_t status)
     try
     {
         /* Check ampere_fanctrl.sh script is exist */
-        if (checkFanCtrlScriptExist() == responseEnabled)
+        if (checkFanCtrlScriptExist() == fileNotExists)
         {
-            /* Enable/Disable the fan speed control */
-            log<level::INFO>("Enable/Disable Fan speed control service");
-            cmd = "ampere_fanctrl.sh setstatus " + std::to_string(status);
-            ret = std::system(cmd.c_str());
-            if (ret == -1)
-            {
-                log<level::ERR>("Can not set fan control status");
-            }
-            return ipmi::responseSuccess(status);
+            log<level::ERR>("Error: ampere_fanctrl.sh script is not exist");
+            return ipmi::responseUnspecifiedError();
         }
+
+        /* Enable/Disable the fan speed control */
+        log<level::INFO>("Enable/Disable Fan speed control service");
+        cmd = "ampere_fanctrl.sh setstatus " + std::to_string(status);
+        ret = std::system(cmd.c_str());
+        if (ret == -1)
+        {
+            log<level::ERR>("Error: can not set fan control status");
+        }
+        return ipmi::responseSuccess(status);
     }
     catch(const std::exception& e)
     {
@@ -669,36 +672,29 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
     std::string cmd = "";
     std::string fanNumberStr;
     std::string speedStr;
-    int ret;
+    int setFanStt;
 
     try
     {
-        /* Check the fan number is valid */
-        if (fanNumber > 16)
-        {
-            log<level::ERR>("Invalid Fan number");
-            return responseInvalidFanNumber();
-        }
-
         /* Check the PWM duty cycle is valid */
         if ((speed < 1) || (speed > 100))
         {
-            log<level::ERR>("Invalid PWM duty cycle");
+            log<level::ERR>("Error: Invalid PWM duty cycle");
             return ipmi::responseUnspecifiedError();
         }
 
         /* Check the Fan speed control status */
         if (getFanStatus() == responseEnabled)
         {
-            log<level::ERR>("Can not set Fan speed because thermal control is "
-                            "not disabled");
+            log<level::ERR>("Error: can not set Fan speed because thermal "
+                            "control is not disabled");
             return responseSetFanErrorThermalCtlNotDisabled();
         }
 
         /* Check ampere_fanctrl.sh script is exist */
-        if (checkFanCtrlScriptExist() == responseDisabled)
+        if (checkFanCtrlScriptExist() == fileNotExists)
         {
-            log<level::ERR>("ampere_fanctrl.sh script is not exist");
+            log<level::ERR>("Error: ampere_fanctrl.sh script is not exist");
             return ipmi::responseUnspecifiedError();
         }
 
@@ -706,10 +702,11 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
         speedStr = std::to_string(speed);
         /* Call ampere_fanctrl.sh script for setting fan speed */
         cmd = "ampere_fanctrl.sh setspeed " + fanNumberStr + " " + speedStr;
-        ret = std::system(cmd.c_str());
-        if (ret == -1)
+        setFanStt = system(cmd.c_str());
+        if (WEXITSTATUS(setFanStt) == 1)
         {
-            log<level::ERR>("Can not set fan speed");
+            log<level::ERR>("Error: Invalid fan number");
+            return responseInvalidFanNumber();
         }
     }
     catch(const std::exception& e)
