@@ -39,6 +39,61 @@ static inline auto responseParmNotSupported()
     return response(commandCompletedError);
 }
 
+/** @brief Sets the property value of the given object.
+ *  @param[in] bus - DBUS Bus Object.
+ *  @param[in] service - Dbus service name.
+ *  @param[in] objPath - Dbus object path.
+ *  @param[in] interface - Dbus interface.
+ *  @param[in] property - name of the property.
+ *  @param[in] value - value which needs to be set.
+ *  @param[out] - none
+ */
+void setProperty(sdbusplus::bus::bus& bus, const std::string& busName,
+                const std::string& objPath, const std::string& interface,
+                const std::string& property, const postcodeData& value)
+{
+    std::variant<postcodeData> variantValue = value;
+    try
+    {
+        auto methodCall = bus.new_method_call(busName.c_str(), objPath.c_str(),
+                                              "org.freedesktop.DBus.Properties",
+                                              "Set");
+        methodCall.append(interface, property, variantValue);
+        auto reply = bus.call(methodCall);
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>("Set properties fail.",
+                        entry("ERROR = %s", e.what()),
+                        entry("Object path = %s", objPath.c_str()));
+        return;
+    }
+}
+
+/** @brief Sets the boot progress Post code.
+ *  @param[in] state1st - The post code 1st value
+ *  @param[in] state2nd - The post code 2nd value
+ *  https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/xyz/
+ *  openbmc_project/State/Boot/Raw.interface.yaml#L6
+ *  @param[out] - none
+ */
+void setProgressPostCode(uint64_t state1st, uint8_t state2nd)
+{
+    postcodeData pcData{state1st, {state2nd}};
+    auto bus = getSdBus();
+    try
+    {
+        std::string service = "xyz.openbmc_project.State.Boot.Raw";
+        std::string object = "/xyz/openbmc_project/state/boot/raw0";
+        std::string inf = "xyz.openbmc_project.State.Boot.Raw";
+        setProperty(*bus, service, object, inf, "Value", pcData);
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>("setProgressPostCode: can't set property");
+    }
+}
+
 uint64_t getCurrentTime()
 {
     uint64_t t = 0;
@@ -75,24 +130,6 @@ void updateProgressLaststateDbus(std::string s)
     catch (const std::exception& e)
     {
         log<level::ERR>("updateProgressLaststateDbus: can't set property");
-    }
-}
-
-/** @brief Update the Redfish BootProgress.OemLastState property
- *  @param[in] s - The OemLastState value
- *  @param[out] - none
- */
-void updateProgressOemLaststateDbus(std::string s)
-{
-    auto bus = getSdBus();
-    try
-    {
-        ipmi::setDbusProperty(*bus, bpService, bpObject, bpInf,
-                              "BootProgressOem", s);
-    }
-    catch (const std::exception& e)
-    {
-        log<level::ERR>("updateProgressOemLaststateDbus: can't set property");
     }
 }
 
@@ -196,6 +233,8 @@ ipmi::RspType<uint8_t>
     std::string bpRecordStr;
     std::string message;
     uint64_t lastStateTime = 0;
+    uint64_t bpdataIn;
+    std::vector<uint8_t> tmp;
 
     try {
         getChannelInfo(ctx->channel, chInfo);
@@ -306,11 +345,6 @@ ipmi::RspType<uint8_t>
         else
             updateProgressLaststateDbus("OEM");
 
-        /* Update the boot progress record to BootProgress.OemLastState
-         * property to the 9-byte hex values of the boot progress code record.
-         */
-        updateProgressOemLaststateDbus(bpRecordStr);
-
         /* Get the BMC's current time*/
         lastStateTime = getCurrentTime();
         /* Update the boot progress record to BootProgress.LastStateTime
@@ -318,6 +352,20 @@ ipmi::RspType<uint8_t>
          * state was updated.
          */
         updateProgressLastStateTimeDbus(lastStateTime);
+
+        /* The OemLastState will updated to the PostCodes Boot.Raw:
+         * https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/
+         * xyz/openbmc_project/State/Boot/Raw.interface.yaml#L6
+         * The type of the Boot.Raw value is struct[uint64,array[byte]]
+         * Update the BootProgress code to the Boot.Raw value:
+         *  - First 8 bytes to the first element of the Boot.Raw value
+         *  - The last one bytes to the last element of the Boot.Raw value
+         */
+        tmp = {codeType, reserved1st, reserved2nd, severity, operation1st,
+               operation2nd, subClass, codeClass};
+        for(auto i : tmp)
+            bpdataIn = ((bpdataIn << 8) + i);
+        setProgressPostCode(bpdataIn, instance);
     }
     catch(const std::exception& e)
     {
