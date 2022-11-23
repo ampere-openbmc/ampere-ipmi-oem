@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <fstream>
 #include <iostream>
 
 using namespace phosphor::logging;
@@ -39,8 +40,8 @@ using FruObjectType = boost::container::flat_map<
         boost::container::flat_map<std::string, BasicVariantType>>>;
 
 static std::vector<std::string> scpRWPath =  {
-    "/sys/bus/platform/devices/smpro-misc.2.auto/",
-    "/sys/bus/platform/devices/smpro-misc.5.auto/",
+    "/sys/bus/platform/devices/smpro-misc.2.auto/reg",
+    "/sys/bus/platform/devices/smpro-misc.5.auto/reg",
 };
 
 constexpr static const char* fruDeviceServiceName =
@@ -408,24 +409,24 @@ ipmi::RspType<> ipmiDocmdConfigureUartSwitch(uint8_t consPort, uint8_t dirSw)
  *  @param - path, offset register to read
  *  @returns - 2 bytes value.
  */
-uint16_t scpReadRegisterMap(std::string path, uint8_t offsetR)
+std::optional<std::uint16_t> scpReadRegisterMap(std::string path, uint8_t offsetR)
 {
-    std::string cmd = "";
-    std::string addrInStr;
     uint16_t addrInt;
-    int ret;
+    std::fstream file;
 
-    std::string nOffsetR = std::to_string(offsetR);
-    cmd = "echo " + nOffsetR + " > " + path + "reg_addr";
-    ret = std::system(cmd.c_str());
-    if (ret == -1)
+    try
     {
+        file.open(path, std::ios::in);
+        if (!file.is_open()){
+            return std::nullopt;
+        }
+        file.seekg(offsetR, std::ios::beg);
+        file.read((char*)(&addrInt), 2);
+        file.close();
+    } catch (const std::exception& e) {
         log<level::ERR>("Can not read register map");
+        return std::nullopt;
     }
-    cmd = "cat " + path + "reg_rw";
-    // Convert string to uint16_t
-    addrInStr = exec(cmd.c_str());
-    addrInt = strtol(addrInStr.c_str(), NULL, BASE);
 
     return addrInt;
 }
@@ -434,24 +435,26 @@ uint16_t scpReadRegisterMap(std::string path, uint8_t offsetR)
  *  @param - path, offset and data to write
  *  @returns - None.
  */
-static void scpWriteRegisterMap(std::string path, uint8_t offsetW, uint16_t dataW)
+static bool scpWriteRegisterMap(std::string path, uint8_t offsetW, uint16_t dataW)
 {
-    int ret;
-    std::string cmd = "";
-    std::string nOffsetW = std::to_string(offsetW);
-    std::string nDataW = std::to_string(dataW);
-    cmd = "echo " + nOffsetW + " > " + path + "reg_addr";
-    ret = std::system(cmd.c_str());
-    if (ret == -1)
+    std::fstream file;
+
+    try
     {
+        file.open(path, std::ios::out);
+        if (!file.is_open()){
+            return false;
+        }
+        file.seekg(offsetW, std::ios::beg);
+        file.write((char*)(&dataW), 2);
+        file.close();
+
+    } catch (const std::exception& e) {
         log<level::ERR>("Can not write register map");
+        return false;
     }
-    cmd = "echo " + nDataW + " > " + path + "reg_rw";
-    ret = std::system(cmd.c_str());
-    if (ret == -1)
-    {
-        log<level::ERR>("Can not write register map");
-    }
+
+    return true;
 }
 
 /** @brief implements ipmi oem command read scp register
@@ -465,17 +468,18 @@ auto ipmiDocmdScpReadRegisterMap(uint8_t cpuIndex, uint8_t offsetR)
     {
         uint8_t firstByte;
         uint8_t secondByte;
-        uint16_t addr;
+        std::optional<std::uint16_t> addr;
 
-        if (cpuIndex == 0) {
-            addr = scpReadRegisterMap(scpRWPath[0], offsetR);
-        } else if (cpuIndex == 1) {
-            addr = scpReadRegisterMap(scpRWPath[1], offsetR);
-        } else {
+        if ( cpuIndex != 0 && cpuIndex != 1 ){
             return responseFailure();
         }
-        firstByte = (uint8_t)(addr >> 8);
-        secondByte = (uint8_t)(addr & 0xff);
+        addr = scpReadRegisterMap(scpRWPath[cpuIndex], offsetR);
+        if(addr == std::nullopt){
+            return responseFailure();
+        }
+
+        firstByte = (uint8_t)(addr.value() >> 8);
+        secondByte = (uint8_t)(addr.value() & 0xff);
 
         return ipmi::responseSuccess(firstByte, secondByte);
     }
@@ -493,11 +497,11 @@ ipmi::RspType<> ipmiDocmdScpWriteRegisterMap(uint8_t cpuIndex, uint8_t offsetW, 
     try
     {
         uint16_t dataW =  ((uint16_t)firstData << 8) | (uint16_t)secondData;
-        if (cpuIndex == 0) {
-            scpWriteRegisterMap(scpRWPath[0], offsetW, dataW);
-        } else if (cpuIndex == 1) {
-            scpWriteRegisterMap(scpRWPath[1], offsetW, dataW);
-        } else {
+        if (cpuIndex != 0 && cpuIndex != 1 ) {
+            return responseFailure();
+        }
+        if(!scpWriteRegisterMap(scpRWPath[cpuIndex], offsetW, dataW))
+        {
             return responseFailure();
         }
     }
