@@ -26,7 +26,25 @@ constexpr uint8_t fileNotExists = 0x01;
 constexpr uint8_t responseInvalidFanNum = 0x01;
 constexpr uint8_t responseSetFanError = 0x02;
 std::string fanCtrlScript = "/usr/sbin/ampere_fanctrl.sh";
-
+/* For Firmware In-band update status */
+constexpr uint8_t FWUpdateStarted = 0x00;
+constexpr uint8_t FWUpdateSuccess = 0x01;
+constexpr uint8_t FWUpdateFailure = 0x02;
+std::string FWUpdateStatusStr[3] =
+    {
+        "Update started",
+        "Update success",
+        "Update failure",
+    };
+constexpr uint8_t FWUpdateEntireHostFW = 0x00;
+constexpr uint8_t FWUpdatePreserveRW = 0x01;
+constexpr uint8_t FWUpdateClearRW = 0x02;
+std::string FWUpdateTypeStr[3] =
+    {
+        "entire Host FW",
+        "RO regions (preserve RW regions)",
+        "RO regions (clear RW regions)",
+    };
 
 namespace ipmi
 {
@@ -43,6 +61,7 @@ constexpr uint8_t cmdSetFanSpeed = 0x04;
 constexpr uint8_t cmdScpRead = 0x17;
 constexpr uint8_t cmdScpWrite = 0x18;
 constexpr uint8_t cmdUartSW = 0xb0;
+constexpr uint8_t cmdSetFWInbandUpdateStatus = 0xf6;
 constexpr uint8_t cmdSyncRtcTime = 0xf9;
 } // namespace general
 } // namespace ipmi

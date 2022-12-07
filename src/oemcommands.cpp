@@ -722,6 +722,95 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
     return ipmi::responseSuccess(responseEnabled);
 }
 
+/** @brief implements set firmware in-band update status
+ *  @param - ctx - shared_ptr to an IPMI context struct
+ *  @param - updateStatus 0x00: Update Started
+ *                        0x01: Update Completed with success
+ *                        0x02: Update Completed with failure
+ *         - updateType   0x00: Update entire Host FW
+ *                        0x01: Update RO regions of Host FW
+ *                              (preserve RW regions)
+ *                        0x02: Update RO regions of Host FW
+ *                              (clear RW regions)
+ *  @returns IPMI completion code: 0x00: success, 0xD6: Handle command failure
+ */
+ipmi::RspType<>
+    ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
+                                uint8_t updateStatus,
+                                uint8_t updateType)
+{
+    ipmi::ChannelInfo chInfo;
+
+    try {
+        getChannelInfo(ctx->channel, chInfo);
+    }
+    catch (sdbusplus::exception_t& e) {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ipmiSetFWInbandUpdateStatus: Failed to get Channel Info",
+            phosphor::logging::entry("MSG: %s", e.description()));
+        return ipmi::responseUnspecifiedError();
+    }
+    if (chInfo.mediumType !=
+        static_cast<uint8_t>(ipmi::EChannelMediumType::smbusV20)) {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ipmiSetFWInbandUpdateStatus: Error - supported only in SSIF "
+            "interface");
+        return ipmi::responseCommandNotAvailable();
+    }
+
+    try
+    {
+        /* Check update status */
+        if (updateStatus != FWUpdateStarted &&
+            updateStatus != FWUpdateSuccess &&
+            updateStatus != FWUpdateFailure)
+        {
+            log<level::ERR>("Error: Invalid FW inband update status");
+            return ipmi::responseCommandDisabled();
+        }
+
+        /* Check update type */
+        if (updateType != FWUpdateEntireHostFW &&
+            updateType != FWUpdatePreserveRW &&
+            updateType != FWUpdateClearRW)
+        {
+            log<level::ERR>("Error: Invalid FW inband update type");
+            return ipmi::responseCommandDisabled();
+        }
+
+        /* Create the SEL log */
+        if (updateStatus == FWUpdateStarted || updateStatus == FWUpdateSuccess)
+        {
+            /* Create an Ampere OK SEL event */
+            std::string messageStr = "Firmware In-band Update Status: " +
+                FWUpdateStatusStr[updateStatus] + " with " +
+                FWUpdateTypeStr[updateType];
+            std::string redfishMsgId("OpenBMC.0.1.AmpereEvent.OK");
+            sd_journal_send("REDFISH_MESSAGE_ID=%s", redfishMsgId.c_str(),
+                            "REDFISH_MESSAGE_ARGS=%s", messageStr.c_str(),
+                            NULL);
+        }
+        else
+        {
+            /* Create an Ampere Warning SEL event */
+            std::string messageStr = FWUpdateStatusStr[updateStatus] + " with " +
+                FWUpdateTypeStr[updateType];
+            std::string redfishMsgId("OpenBMC.0.1.AmpereWarning.Warning");
+            sd_journal_send("REDFISH_MESSAGE_ID=%s", redfishMsgId.c_str(),
+                            "REDFISH_MESSAGE_ARGS=%s,%s",
+                            "Firmware In-band Update Status",
+                            messageStr.c_str(), NULL);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseCommandDisabled();
+    }
+
+    return ipmi::responseSuccess();
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
@@ -749,4 +838,7 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSetFanSpeed, ipmi::Privilege::Admin,
                           ipmiSetFanSpeed);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetFWInbandUpdateStatus,
+                          ipmi::Privilege::Admin, ipmiSetFWInbandUpdateStatus);
 }
