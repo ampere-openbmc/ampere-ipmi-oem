@@ -45,7 +45,11 @@ std::string FWUpdateTypeStr[3] =
         "RO regions (preserve RW regions)",
         "RO regions (clear RW regions)",
     };
-
+/* For Host Firmware Revision */
+std::string hostFWService = "xyz.openbmc_project.Software.BMC.Updater";
+std::string hostFWObject = "/xyz/openbmc_project/software/bios_active";
+std::string hostFWInf = "xyz.openbmc_project.Software.Version";
+std::string hostFwRevisionFs = "/var/lib/host_fw_revision";
 namespace ipmi
 {
 namespace ampere
@@ -61,6 +65,7 @@ constexpr uint8_t cmdSetFanSpeed = 0x04;
 constexpr uint8_t cmdScpRead = 0x17;
 constexpr uint8_t cmdScpWrite = 0x18;
 constexpr uint8_t cmdUartSW = 0xb0;
+constexpr uint8_t cmdSetHostFWRevision = 0xf0;
 constexpr uint8_t cmdSetFWInbandUpdateStatus = 0xf6;
 constexpr uint8_t cmdSyncRtcTime = 0xf9;
 } // namespace general

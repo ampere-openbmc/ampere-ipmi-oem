@@ -811,6 +811,77 @@ ipmi::RspType<>
     return ipmi::responseSuccess();
 }
 
+/** @brief implements set Host Firmware Revision command
+ *  @param - ctx - shared_ptr to an IPMI context struct
+ *  @param - Host FW Revision data bytes
+ *  @returns IPMI completion code: 0x00: success
+ */
+ipmi::RspType<uint8_t> ipmiSetHostFWRevision(ipmi::Context::ptr ctx,
+                                             uint8_t fwMajor, uint8_t fwMinor,
+                                             uint8_t fwAux1st, uint8_t fwAux2nd,
+                                             uint8_t fwAux3rd, uint8_t fwAux4th)
+{
+    ipmi::ChannelInfo chInfo;
+
+    try {
+        getChannelInfo(ctx->channel, chInfo);
+    }
+    catch (sdbusplus::exception_t& e) {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ipmiSetHostFWRevision: Failed to get Channel Info",
+            phosphor::logging::entry("MSG: %s", e.description()));
+        return ipmi::responseUnspecifiedError();
+    }
+    if (chInfo.mediumType !=
+        static_cast<uint8_t>(ipmi::EChannelMediumType::smbusV20)) {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ipmiSetHostFWRevision: Error - supported only in SSIF interface");
+        return ipmi::responseCommandNotAvailable();
+    }
+
+    try
+    {
+        auto bus = getSdBus();
+        try
+        {
+            std::vector<uint8_t> dataIn;
+            uint8_t i;
+            std::string hostFWRevision = "";
+            char hexStr[3];
+
+            /* Convert Host Firmware Revision to string format */
+            dataIn = {fwMajor, fwMinor, fwAux4th, fwAux3rd, fwAux2nd, fwAux1st};
+
+            for (i = 0; i < dataIn.size(); i++)
+            {
+                sprintf(hexStr, "%02x", dataIn[i]);
+                hostFWRevision = hostFWRevision + hexStr;
+                if (i == 0 || i == 1)
+                    hostFWRevision += ".";
+            }
+            /* Set Host Firmware Revision to D-bus */
+            ipmi::setDbusProperty(*bus, hostFWService, hostFWObject, hostFWInf,
+                                  "Version", hostFWRevision);
+
+            /* Store Host Firmware Revision to file */
+            std::ofstream hostFwFile(hostFwRevisionFs.c_str());
+            hostFwFile << hostFWRevision;
+            hostFwFile.close();
+        }
+        catch (const std::exception& e)
+        {
+            log<level::ERR>("ipmiSetHostFWRevision: can't set property");
+        }
+    }
+    catch (const std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseUnspecifiedError();
+    }
+
+    return ipmi::responseSuccess();
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
@@ -841,4 +912,7 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSetFWInbandUpdateStatus,
                           ipmi::Privilege::Admin, ipmiSetFWInbandUpdateStatus);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetHostFWRevision,
+                          ipmi::Privilege::Admin, ipmiSetHostFWRevision);
 }
