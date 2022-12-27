@@ -882,6 +882,60 @@ ipmi::RspType<uint8_t> ipmiSetHostFWRevision(ipmi::Context::ptr ctx,
     return ipmi::responseSuccess();
 }
 
+/** @brief implements check ampere_pldm_effecter_trigger.sh script is exist
+ *  @param - None
+ *  @returns IPMI completion code: 0x00: exist, 0x01: Not exist.
+ */
+static bool checkPldmEffecterTriggerScriptExist()
+{
+    /* Check ampere_pldm_effecter_trigger.sh script is exist */
+    if (!access(pldmEffecterTriggerScript.c_str(), F_OK))
+        return 0;
+    else
+        return 1;
+}
+
+/** @brief implements Ampere IPMI OEM Command Trigger Host Firmware Crash Dump
+ *  @param - none
+ *  @returns IPMI completion code: 0x00: Success
+ *                                       0xD6 = This platform does not support
+ *                                       0xFF: Error
+ */
+ipmi::RspType<uint8_t> ipmiTriggerHostFWCrashDump()
+{
+    int bertTriggerStt;
+    std::string cmd;
+    try
+    {
+        /* Check ampere_pldm_effecter_trigger.sh script is exist */
+        if (checkPldmEffecterTriggerScriptExist() == fileNotExists)
+        {
+            log<level::ERR>("Error: ampere_pldm_effecter_trigger.sh "
+                "script is not exist");
+            return ipmi::responseCommandDisabled();
+        }
+
+        /* Call ampere_pldm_effecter_trigger.sh script trigger crash dump.
+         * This script will trigger BERT error by setting value 2 to the
+         * S0_Effecter_201
+         */
+        cmd = pldmEffecterTriggerScript + " -s 0 BERTTrigger";
+        bertTriggerStt = system(cmd.c_str());
+        if (WEXITSTATUS(bertTriggerStt) == responseError)
+        {
+            log<level::ERR>("Error: Can not Trigger BERT");
+            return ipmi::responseUnspecifiedError();
+        }
+    }
+    catch(const std::exception& e)
+    {
+        log<level::ERR>(e.what());
+        return ipmi::responseUnspecifiedError();
+    }
+
+    return ipmi::responseSuccess();
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
@@ -915,4 +969,7 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSetHostFWRevision,
                           ipmi::Privilege::Admin, ipmiSetHostFWRevision);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdTriggerHostFWCrashDump,
+                          ipmi::Privilege::Admin, ipmiTriggerHostFWCrashDump);
 }

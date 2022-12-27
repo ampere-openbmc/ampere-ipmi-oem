@@ -25,7 +25,9 @@ constexpr uint8_t responseDisabled = 0x01;
 constexpr uint8_t fileNotExists = 0x01;
 constexpr uint8_t responseInvalidFanNum = 0x01;
 constexpr uint8_t responseSetFanError = 0x02;
+constexpr uint8_t responseError = 0xff;
 std::string fanCtrlScript = "/usr/sbin/ampere_fanctrl.sh";
+std::string pldmEffecterTriggerScript = "/usr/sbin/ampere_pldm_effecter_trigger.sh";
 /* For Firmware In-band update status */
 constexpr uint8_t FWUpdateStarted = 0x00;
 constexpr uint8_t FWUpdateSuccess = 0x01;
@@ -62,6 +64,7 @@ constexpr uint8_t cmdEditBmcMacAdr = 0x01;
 constexpr uint8_t cmdGetFanControlStatus = 0x02;
 constexpr uint8_t cmdSetFanControlStatus = 0x03;
 constexpr uint8_t cmdSetFanSpeed = 0x04;
+constexpr uint8_t cmdTriggerHostFWCrashDump = 0x15;
 constexpr uint8_t cmdScpRead = 0x17;
 constexpr uint8_t cmdScpWrite = 0x18;
 constexpr uint8_t cmdUartSW = 0xb0;
