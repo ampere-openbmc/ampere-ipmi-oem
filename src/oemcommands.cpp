@@ -18,6 +18,7 @@
 #include <ipmid/types.hpp>
 #include <ipmid/utils.hpp>
 #include <phosphor-logging/log.hpp>
+#include <nlohmann/json.hpp>
 #include "oemcommands.hpp"
 #include <cstdlib>
 #include <boost/container/flat_map.hpp>
@@ -27,6 +28,7 @@
 #include <dirent.h>
 #include <fstream>
 #include <iostream>
+#include <utility>
 
 using namespace phosphor::logging;
 
@@ -44,10 +46,24 @@ static std::vector<std::string> scpRWPath =  {
     "/sys/bus/platform/devices/smpro-misc.5.auto/reg",
 };
 
+/*
+ * The object path of PLDM sensors which store Power Limit information.
+ * The first property of each element is object path of PLDM sensors, the
+ * second property indicates the this sensor is mandatory or not.
+ * If a sensor is mandatory, an error shall be sent if BMC can not set/get data
+ * to/from this one. Else, BMC does not send error when BMC can not get/set
+ * data to/from them.
+ */
+static std::vector<std::pair<std::string, bool>> pldmPLimitObjectPath;
+
 constexpr static const char* fruDeviceServiceName =
     "xyz.openbmc_project.FruDevice";
 
 constexpr static const char* chassisTypeRackMount = "23";
+constexpr static const char* pldmService = "xyz.openbmc_project.PLDM";
+constexpr static const char* pldmSensorValInterface =
+    "xyz.openbmc_project.Sensor.Value";
+constexpr static const char* pldmSensorValPro = "Value";
 
 static inline auto response(uint8_t cc)
 {
@@ -333,6 +349,70 @@ std::string exec(const char* cmd) {
     /* Close a stream that was opened by popen() */
     pclose(pipe);
     return result;
+}
+
+/**
+ *  @brief Parse SoC power limit configuration
+ */
+static void parsePowerLimitCfg()
+{
+    const static std::string pwrLimitCfgFile =
+                "/usr/share/ipmi-providers/power_limit.json";
+    std::ifstream cfgFile(pwrLimitCfgFile);
+
+    if (!cfgFile.is_open())
+    {
+        log<level::ERR>("Can not open the Power Limit configuration file");
+        return;
+    }
+
+    auto data = nlohmann::json::parse(cfgFile, nullptr, false);
+
+    if (data.is_discarded())
+    {
+        log<level::ERR>("Can not parse power limit configuration data");
+        return;
+    }
+
+    /*
+     * The configuration should suport multiple methods to implement Set/Get
+     * power limit command like PLDM, SCP ...
+     * This function should be updated when new mwthod is supported.
+     */
+
+     /*
+      * Parse power limit configiration of PLDM method
+      */
+    if (data.contains("pldm"))
+    {
+        auto pldmData = data.at("pldm");
+        if (pldmData.is_array())
+        {
+            try
+            {
+                /*
+                 * Each element has 2 properties: objectPath and requiredFlag.
+                 *      objectPath: D-bus object path
+                 *      requiredFlag: this sensor is mandatory or not
+                 */
+                for (const auto& entity : pldmData)
+                {
+                    std::string ojctPath =
+                                entity.at("objectPath").get<std::string>();
+                    bool requiredFlag = entity.at("requiredFlag").get<bool>();
+
+                    pldmPLimitObjectPath.push_back(
+                                std::make_pair(ojctPath, requiredFlag));
+                }
+            }
+            catch (const std::exception& e)
+            {
+                log<level::ERR>(
+                            "Can not parse power limit configuration data");
+                return;
+            }
+        }
+    }
 }
 
 /** @brief implements sync RTC time to BMC commands
@@ -936,9 +1016,187 @@ ipmi::RspType<uint8_t> ipmiTriggerHostFWCrashDump()
     return ipmi::responseSuccess();
 }
 
+/**
+ *  @brief Implement Set SoC power limit command
+ *
+ *  @param[in] upper - Configured SoC power limit (upper)
+ *  @param[in] lower - Configured SoC power limit (lower)
+ *
+ *  @return IPMI completion code
+ *      - Competetion code:
+ *          0x00: Success
+ *          0xC7: Request Data length is invalid.
+ *          0xC9: Input value is out of range (greater or lesser than Socket
+ *                TDP).
+ *          0xD5: The BMC could not send the data to the host.
+ *          0xD6: This platform does not support.
+ *          0xFF: An error occurs.
+ */
+static ipmi::RspType<> setSoCPowerLimit(
+                                       ipmi::Context::ptr ctx,
+                                       uint8_t upper,
+                                       uint8_t lower
+                                     )
+{
+    uint8_t completeCode = 0x00;
+    uint16_t pwrLimit = ((uint16_t)upper << 8) | (uint16_t)lower;
+    bool supportFlg = false;
+
+    /*
+     * Depend on the platform, seting SoC power limit can be implemented by
+     * different solutions such as PLDM, SCP ...
+     * This function should be updated when new solution is provided.
+     */
+
+    /*
+     * Set power limit via PLDM's sensors
+     */
+    if (!pldmPLimitObjectPath.empty())
+    {
+        supportFlg = true;
+        for (auto [ojctPath, flag] : pldmPLimitObjectPath)
+        {
+            /*
+             * TODO: Check the input value is out of range or not by getting
+             * min/max value.
+             */
+            boost::system::error_code ec =
+                ipmi::setDbusProperty(ctx, pldmService, ojctPath.c_str(),
+                pldmSensorValInterface, pldmSensorValPro, (double)pwrLimit);
+
+            /*
+             * If the setting dbus property are fail and this is a mandatory
+             * sensor then request will be stopped.
+             */
+            if (ec)
+            {
+                if (true == flag)
+                {
+                    log<level::ERR>("Error: Can not set the power \
+                                    limit to mandatory sensor");
+                    completeCode = 0xd5;
+                    break;
+                }
+                else
+                {
+                    log<level::INFO>("Infor: Can not set the power \
+                                    limit to non-mandatory sensor");
+                    continue;
+                }
+            }
+        }
+    }
+
+    /*
+     * This platform does not support any method to set SoC power limit
+     */
+    if (!supportFlg)
+    {
+        completeCode = 0xd6;
+    }
+
+    return ipmi::response(completeCode);
+}
+
+/**
+ *  @brief Implement get SoC power limit command
+ *
+ *  @return IPMI completion code plus response data
+ *      - Competetion code:
+ *          0x00: Success
+ *          0cD5: The BMC could not send the data to the host.
+ *          0xD6: This platform does not support.
+ *          0xFF: An error occurs.
+ *      - Current SoC power limit (upper)
+ *      - Current SoC power limit (lower)
+ */
+static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
+{
+    uint8_t completeCode = 0x00;
+    uint16_t pwrLimit = 0;
+    bool supportFlg = false;
+
+    /*
+     * Depend on the platform, geting SoC power limit can be implemented by
+     * different solutions such as PLDM, SCP ...
+     * This function should be updated when new solution is provided.
+     */
+
+    /*
+     * Get power limit via PLDM's sensors
+     */
+    if (!pldmPLimitObjectPath.empty())
+    {
+        supportFlg = true;
+        for (auto [ojctPath, flag] : pldmPLimitObjectPath)
+        {
+            double dbusVal = 0;
+            boost::system::error_code ec =
+                ipmi::getDbusProperty(ctx, pldmService, ojctPath.c_str(),
+                pldmSensorValInterface, pldmSensorValPro, dbusVal);
+
+            /*
+             * If the setting dbus property are fail and this is a mandatory
+             * sensor then request will be stopped.
+             */
+            if (ec)
+            {
+                if (true == flag)
+                {
+                    log<level::ERR>("Error: Can not get the power \
+                                    limit of mandatory sensors");
+                    completeCode = 0xD5;
+                    break;
+                }
+                else
+                {
+                    log<level::INFO>("Infor: Can not get the power \
+                                    limit of non-mandatory sensors");
+                    continue;
+                }
+            }
+
+            /*
+             * When the Power Limit of sensors are different, BMC indicates
+             * this is an error.
+             */
+            if (pwrLimit == 0)
+            {
+                pwrLimit = (uint16_t)dbusVal;
+            }
+            else if (pwrLimit != (uint16_t)dbusVal)
+            {
+                completeCode = 0xff;
+                break;
+            }
+        }
+    }
+
+    /*
+     * This platform does not support any method to get SoC power limit
+     */
+    if (!supportFlg)
+    {
+        completeCode = 0xd6;
+    }
+
+    if (completeCode != 0x00)
+    {
+        return ipmi::response(completeCode);
+    }
+
+    return ipmi::response(completeCode, (uint8_t)(pwrLimit >> 8),
+                         (uint8_t)(pwrLimit & 0xff));
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
+    /*
+     * Parse SoC power limit configuration
+     */
+    parsePowerLimitCfg();
+
     ipmi::registerHandler(ipmi::prioOemBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdSyncRtcTime,
                           ipmi::Privilege::Admin, ipmiSyncRTCTimeToBMC);
@@ -972,4 +1230,10 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdTriggerHostFWCrashDump,
                           ipmi::Privilege::Admin, ipmiTriggerHostFWCrashDump);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetSoCPowerLimit,
+                          ipmi::Privilege::Admin, setSoCPowerLimit);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdGetSoCPowerLimit,
+                          ipmi::Privilege::Admin, getSoCPowerLimit);
 }
