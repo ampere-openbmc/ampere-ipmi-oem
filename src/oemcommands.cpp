@@ -544,48 +544,32 @@ static bool scpWriteRegisterMap(std::string path, uint8_t offsetW, uint16_t data
 auto ipmiDocmdScpReadRegisterMap(uint8_t cpuIndex, uint8_t offsetR)
     -> ipmi::RspType<uint8_t, uint8_t>
 {
-    try
-    {
-        uint8_t firstByte;
-        uint8_t secondByte;
-        std::optional<std::uint16_t> addr;
+    std::optional<std::uint16_t> addr;
 
-        if ( cpuIndex != 0 && cpuIndex != 1 ){
-            return responseFailure();
-        }
-        addr = scpReadRegisterMap(scpRWPath[cpuIndex], offsetR);
-        if(addr == std::nullopt){
-            return responseFailure();
-        }
-
-        firstByte = (uint8_t)(addr.value() >> 8);
-        secondByte = (uint8_t)(addr.value() & 0xff);
-
-        return ipmi::responseSuccess(firstByte, secondByte);
-    }
-    catch(const std::exception& e) {
+    if (cpuIndex >= scpRWPath.size()) {
         return responseFailure();
     }
+    addr = scpReadRegisterMap(scpRWPath[cpuIndex], offsetR);
+    if (addr == std::nullopt) {
+        return responseFailure();
+    }
+
+    return ipmi::responseSuccess((uint8_t)(addr.value() & 0xff),
+                                 (uint8_t)(addr.value() >> 8));
 }
 
 /** @brief implements ipmi oem command write scp register
  *  @param - cpuIndex, offsetRead and data write byte 0/1
  *  @returns - Fail or Success.
  */
-ipmi::RspType<> ipmiDocmdScpWriteRegisterMap(uint8_t cpuIndex, uint8_t offsetW, uint8_t firstData, uint8_t secondData)
+ipmi::RspType<> ipmiDocmdScpWriteRegisterMap(uint8_t cpuIndex, uint8_t offsetW,
+                                             uint8_t lowByte, uint8_t highByte)
 {
-    try
-    {
-        uint16_t dataW =  ((uint16_t)firstData << 8) | (uint16_t)secondData;
-        if (cpuIndex != 0 && cpuIndex != 1 ) {
-            return responseFailure();
-        }
-        if(!scpWriteRegisterMap(scpRWPath[cpuIndex], offsetW, dataW))
-        {
-            return responseFailure();
-        }
+    if (cpuIndex >= scpRWPath.size()) {
+        return responseFailure();
     }
-    catch(const std::exception& e)
+    if (!scpWriteRegisterMap(scpRWPath[cpuIndex], offsetW,
+                            (((uint16_t)lowByte) | ((uint16_t)highByte << 8))))
     {
         return responseFailure();
     }
