@@ -47,14 +47,12 @@ static std::vector<std::string> scpRWPath =  {
 };
 
 /*
- * The object path of PLDM sensors which store Power Limit information.
- * The first property of each element is object path of PLDM sensors, the
- * second property indicates the this sensor is mandatory or not.
- * If a sensor is mandatory, an error shall be sent if BMC can not set/get data
- * to/from this one. Else, BMC does not send error when BMC can not get/set
- * data to/from them.
+ * The Power Limit configuration, it includes Power Limit configuration of SOC
+ * and DIMM ...
+ *   - SoC configuration is stored in "SoC" property.
+ *   - DIMM configuration is stored in "DIMM" property.
  */
-static std::vector<std::pair<std::string, bool>> pldmPLimitObjectPath;
+static nlohmann::json powerLimitJsonData;
 
 constexpr static const char* fruDeviceServiceName =
     "xyz.openbmc_project.FruDevice";
@@ -352,7 +350,7 @@ std::string exec(const char* cmd) {
 }
 
 /**
- *  @brief Parse SoC power limit configuration
+ *  @brief Parse SoC/DIMM power limit configuration
  */
 static void parsePowerLimitCfg()
 {
@@ -362,56 +360,17 @@ static void parsePowerLimitCfg()
 
     if (!cfgFile.is_open())
     {
-        log<level::ERR>("Can not open the Power Limit configuration file");
+        log<level::INFO>("Can not open the Power Limit configuration file");
         return;
     }
 
-    auto data = nlohmann::json::parse(cfgFile, nullptr, false);
-
-    if (data.is_discarded())
+    try
     {
-        log<level::ERR>("Can not parse power limit configuration data");
-        return;
+        powerLimitJsonData = nlohmann::json::parse(cfgFile, nullptr, false);
     }
-
-    /*
-     * The configuration should suport multiple methods to implement Set/Get
-     * power limit command like PLDM, SCP ...
-     * This function should be updated when new mwthod is supported.
-     */
-
-     /*
-      * Parse power limit configiration of PLDM method
-      */
-    if (data.contains("pldm"))
+    catch (const nlohmann::json::parse_error& e)
     {
-        auto pldmData = data.at("pldm");
-        if (pldmData.is_array())
-        {
-            try
-            {
-                /*
-                 * Each element has 2 properties: objectPath and requiredFlag.
-                 *      objectPath: D-bus object path
-                 *      requiredFlag: this sensor is mandatory or not
-                 */
-                for (const auto& entity : pldmData)
-                {
-                    std::string ojctPath =
-                                entity.at("objectPath").get<std::string>();
-                    bool requiredFlag = entity.at("requiredFlag").get<bool>();
-
-                    pldmPLimitObjectPath.push_back(
-                                std::make_pair(ojctPath, requiredFlag));
-                }
-            }
-            catch (const std::exception& e)
-            {
-                log<level::ERR>(
-                            "Can not parse power limit configuration data");
-                return;
-            }
-        }
+        log<level::ERR>("Can not parse the Power Limit configuration file");
     }
 }
 
@@ -1027,45 +986,76 @@ static ipmi::RspType<> setSoCPowerLimit(
     bool supportFlg = false;
 
     /*
-     * Depend on the platform, seting SoC power limit can be implemented by
-     * different solutions such as PLDM, SCP ...
-     * This function should be updated when new solution is provided.
+     * The SoC power limit is configure in "SoC" property
      */
-
-    /*
-     * Set power limit via PLDM's sensors
-     */
-    if (!pldmPLimitObjectPath.empty())
+    if (!powerLimitJsonData.is_discarded())
     {
-        supportFlg = true;
-        for (auto [ojctPath, flag] : pldmPLimitObjectPath)
-        {
-            /*
-             * TODO: Check the input value is out of range or not by getting
-             * min/max value.
-             */
-            boost::system::error_code ec =
-                ipmi::setDbusProperty(ctx, pldmService, ojctPath.c_str(),
-                pldmSensorValInterface, pldmSensorValPro, (double)pwrLimit);
+        /*
+         * Depend on the platform, geting SoC power limit can be implemented by
+         * different solutions such as PLDM, SCP ...
+         * This function should be updated when new solution is provided.
+         */
 
-            /*
-             * If the setting dbus property are fail and this is a mandatory
-             * sensor then request will be stopped.
-             */
-            if (ec)
+        /*
+         * Set power limit via PLDM's sensors
+         */
+        if ((powerLimitJsonData.contains("SoC")) && 
+            (powerLimitJsonData.at("SoC").contains("pldm")))
+        {
+            supportFlg = true;
+            auto pldmSensors = powerLimitJsonData.at("SoC").at("pldm");
+
+            if (pldmSensors.is_array())
             {
-                if (true == flag)
+                try
                 {
-                    log<level::ERR>("Error: Can not set the power \
-                                    limit to mandatory sensor");
-                    completeCode = 0xd5;
-                    break;
+                    /*
+                     * Each PLDM sensor has 2 properties: 
+                     *     - objectPath: D-bus object path
+                     *     - requiredFlag: this sensor is mandatory or not
+                     */
+                    for (const auto& entity : pldmSensors)
+                    {
+                        std::string ojctPath =
+                                    entity.at("objectPath").get<std::string>();
+                        bool flag = entity.at("requiredFlag").get<bool>();
+
+                        /*
+                         * TODO: Check the input value is out of range or not by
+                         * getting min/max value.
+                         */
+                        boost::system::error_code ec =
+                            ipmi::setDbusProperty(ctx, pldmService, 
+                                ojctPath.c_str(), pldmSensorValInterface, 
+                                pldmSensorValPro, (double)pwrLimit);
+
+                        /*
+                         * If the setting dbus property are fail and this is a
+                         * mandatory sensor then request will be stopped.
+                         */
+                        if (ec)
+                        {
+                            if (true == flag)
+                            {
+                                log<level::ERR>("Error: Can not set the power \
+                                                limit to mandatory sensor");
+                                completeCode = 0xd5;
+                                break;
+                            }
+                            else
+                            {
+                                log<level::INFO>("Infor: Can not set the power \
+                                                limit to non-mandatory sensor");
+                                continue;
+                            }
+                        }
+                    }
                 }
-                else
+                catch (const std::exception& e)
                 {
-                    log<level::INFO>("Infor: Can not set the power \
-                                    limit to non-mandatory sensor");
-                    continue;
+                    completeCode = 0xFF;
+                    log<level::ERR>(
+                            "Can not parse power limit configuration data");
                 }
             }
         }
@@ -1088,7 +1078,7 @@ static ipmi::RspType<> setSoCPowerLimit(
  *  @return IPMI completion code plus response data
  *      - Competetion code:
  *          0x00: Success
- *          0cD5: The BMC could not send the data to the host.
+ *          0xD5: The BMC could not send the data to the host.
  *          0xD6: This platform does not support.
  *          0xFF: An error occurs.
  *      - Current SoC power limit (upper)
@@ -1101,57 +1091,87 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
     bool supportFlg = false;
 
     /*
-     * Depend on the platform, geting SoC power limit can be implemented by
-     * different solutions such as PLDM, SCP ...
-     * This function should be updated when new solution is provided.
+     * The SoC power limit is configure in "SoC" property
      */
-
-    /*
-     * Get power limit via PLDM's sensors
-     */
-    if (!pldmPLimitObjectPath.empty())
+    if (!powerLimitJsonData.is_discarded())
     {
-        supportFlg = true;
-        for (auto [ojctPath, flag] : pldmPLimitObjectPath)
+        /*
+         * Depend on the platform, geting SoC power limit can be implemented by
+         * different solutions such as PLDM, SCP ...
+         * This function should be updated when new solution is provided.
+         */
+
+        /*
+         * Get power limit via PLDM's sensors
+         */
+        if ((powerLimitJsonData.contains("SoC")) && 
+            (powerLimitJsonData.at("SoC").contains("pldm")))
         {
-            double dbusVal = 0;
-            boost::system::error_code ec =
-                ipmi::getDbusProperty(ctx, pldmService, ojctPath.c_str(),
-                pldmSensorValInterface, pldmSensorValPro, dbusVal);
+            supportFlg = true;
+            auto pldmSensors = powerLimitJsonData.at("SoC").at("pldm");
 
-            /*
-             * If the setting dbus property are fail and this is a mandatory
-             * sensor then request will be stopped.
-             */
-            if (ec)
+            if (pldmSensors.is_array())
             {
-                if (true == flag)
+                try
                 {
-                    log<level::ERR>("Error: Can not get the power \
-                                    limit of mandatory sensors");
-                    completeCode = 0xD5;
-                    break;
-                }
-                else
-                {
-                    log<level::INFO>("Infor: Can not get the power \
-                                    limit of non-mandatory sensors");
-                    continue;
-                }
-            }
+                    /*
+                     * Each PLDM sensor has 2 properties: 
+                     *     - objectPath: D-bus object path
+                     *     - requiredFlag: this sensor is mandatory or not
+                     */
+                    for (const auto& entity : pldmSensors)
+                    {
+                        std::string ojctPath =
+                                    entity.at("objectPath").get<std::string>();
+                        bool flag = entity.at("requiredFlag").get<bool>();
+                        double dbusVal = 0;
+                        boost::system::error_code ec =
+                            ipmi::getDbusProperty(ctx, pldmService, 
+                                ojctPath.c_str(), pldmSensorValInterface, 
+                                pldmSensorValPro, dbusVal);
 
-            /*
-             * When the Power Limit of sensors are different, BMC indicates
-             * this is an error.
-             */
-            if (pwrLimit == 0)
-            {
-                pwrLimit = (uint16_t)dbusVal;
-            }
-            else if (pwrLimit != (uint16_t)dbusVal)
-            {
-                completeCode = 0xff;
-                break;
+                        /*
+                         * If the setting dbus property are fail and this is a
+                         * mandatory sensor then request will be stopped.
+                         */
+                        if (ec)
+                        {
+                            if (true == flag)
+                            {
+                                log<level::ERR>("Error: Can not get the power \
+                                            limit of mandatory sensors");
+                                completeCode = 0xD5;
+                                break;
+                            }
+                            else
+                            {
+                                log<level::INFO>("Infor: Can not get the power \
+                                            limit of non-mandatory sensors");
+                                continue;
+                            }
+                        }
+
+                        /*
+                         * When the Power Limit of sensors are different, BMC
+                         * indicates this is an error.
+                         */
+                        if (pwrLimit == 0)
+                        {
+                            pwrLimit = (uint16_t)dbusVal;
+                        }
+                        else if (pwrLimit != (uint16_t)dbusVal)
+                        {
+                            completeCode = 0xff;
+                            break;
+                        }
+                    }
+                }
+                catch (const std::exception& e)
+                {
+                    completeCode = 0xFF;
+                    log<level::ERR>(
+                            "Can not parse power limit configuration data");
+                }
             }
         }
     }
