@@ -25,15 +25,15 @@ add_project_arguments(
   ]),
   language : 'cpp')
 
-if get_option('mac_address_fru_bus') != 0
+if get_option('mac-address-fru-bus') != 0
   add_project_arguments(
-    '-DMAC_ADDRESS_FRU_BUS='+get_option('mac_address_fru_bus').to_string(),
+    '-DMAC_ADDRESS_FRU_BUS='+get_option('mac-address-fru-bus').to_string(),
     language : 'cpp')
 endif
 
-if get_option('mac_address_fru_addr') != 0
+if get_option('mac-address-fru-addr') != 0
   add_project_arguments(
-    '-DMAC_ADDRESS_FRU_ADDR='+get_option('mac_address_fru_addr').to_string(),
+    '-DMAC_ADDRESS_FRU_ADDR='+get_option('mac-address-fru-addr').to_string(),
     language : 'cpp')
 endif
 
