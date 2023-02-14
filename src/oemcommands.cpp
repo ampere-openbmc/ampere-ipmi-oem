@@ -87,7 +87,7 @@ static inline auto responseSetFanErrorThermalCtlNotDisabled()
  *  @param - busIdx, address of I2C device
  *  @returns - true if successfully, false if fail
  */
-[[maybe_unused]] static bool getBaseBoardFRUAddr(uint8_t &busIdx, uint8_t &addr)
+[[maybe_unused]] static bool getBaseBoardFRUAddr(uint16_t &busIdx, uint8_t &addr)
 {
     bool retVal = false;
     sd_bus* bus = NULL;
@@ -146,7 +146,7 @@ static inline auto responseSetFanErrorThermalCtlNotDisabled()
                     (busProperty != fruDeviceInf->second.end()) &&
                     (addrProperty != fruDeviceInf->second.end()))
                 {
-                    busIdx = (uint8_t)std::get<uint32_t>(busProperty->second);
+                    busIdx = (uint16_t)std::get<uint32_t>(busProperty->second);
                     addr = (uint8_t)std::get<uint32_t>(addrProperty->second);
                     retVal = true;
                     break;
@@ -164,7 +164,7 @@ static inline auto responseSetFanErrorThermalCtlNotDisabled()
  *         - fruData: data have been read
  *  @returns - true if successfully, false if fail
  */
-static bool getRawFruData(uint8_t busIdx, uint8_t addr, std::vector<uint8_t> &fruData)
+static bool getRawFruData(uint16_t busIdx, uint8_t addr, std::vector<uint8_t> &fruData)
 {
     bool retVal = false;
     sd_bus* bus = NULL;
@@ -287,7 +287,7 @@ static bool updateMACAddInFRU(std::vector<uint8_t> &fruData, std::vector<uint8_t
  *         - fruData: FRU data
  *  @returns - true if successfully, false if fail
  */
-static bool writeFruData(uint8_t busIdx, uint8_t addr, std::vector<uint8_t> &fruData)
+static bool writeFruData(uint16_t busIdx, uint8_t addr, std::vector<uint8_t> &fruData)
 {
     bool retVal = false;
     sd_bus* bus = NULL;
@@ -543,7 +543,7 @@ ipmi::RspType<> ipmiDocmdScpWriteRegisterMap(uint8_t cpuIndex, uint8_t offsetW,
 ipmi::RspType<uint8_t> ipmiDocmdSetMacAddress(std::vector<uint8_t> macAddress)
 {
     std::vector<uint8_t> fruData;
-    uint8_t busIdx = 0;
+    uint16_t busIdx = 0;
     uint8_t addrss = 0;
 
     if(macAddress.size() != 6)
