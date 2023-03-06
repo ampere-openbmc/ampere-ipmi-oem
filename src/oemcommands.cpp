@@ -213,74 +213,174 @@ static bool getRawFruData(uint16_t busIdx, uint8_t addr, std::vector<uint8_t> &f
 static bool updateMACAddInFRU(std::vector<uint8_t> &fruData, std::vector<uint8_t> macAddress)
 {
     bool retVal = false;
-    uint32_t areaOffset = fruData[3] * 8; /* Board area start offset */
-    char macAddressStr[18];
-    uint32_t boardLeng = 0;
+    bool shiftFlag = false; /*If shifting is needed*/
+    uint32_t boardInfoAreaOffset = fruData[fru::commonHeader::boardOffset] * 8;
+    uint32_t boardInfoAreaLength = fruData[boardInfoAreaOffset + 1] * 8;
     uint8_t  checkSumVal = 0;
+    uint32_t fieldOffset, shiftOffset = 0;
+    int shiftSpace = 0; /*The byte length (signed) that the remaining fruData will be shifted by*/
+    char macAddressStr[fru::board::macAddressLength + 1];
+    std::vector<uint8_t> shiftBuffer; /*Buffer to temporarily save data to be shifted*/
 
     /*
      * Update MAC address at first custom field of Board Information Area.
      */
-    if(areaOffset != 0)
+    if(boardInfoAreaOffset != 0)
     {
         /*
          * The Board Manufacturer type/length byte is stored
          * at byte 0x06 of Board area.
          */
-        uint32_t fieldOffset = areaOffset + 6;
-
+        fieldOffset = boardInfoAreaOffset + fru::board::manuNameOffset;
         /*
          * Scan all 5 predefined fields of Board area to jump to
          * first Custom field.
          */
-        for(uint32_t i = 0; i < 5; i++)
+        for(uint32_t i = 0; i < fru::board::predefinedFieldNum; i++)
         {
-            fieldOffset += (fruData[fieldOffset] & 0x3f) + 1;
+            fieldOffset += (fruData[fieldOffset] & fru::fieldLengthByteMask) + 1;
         }
 
-        /*
-         * Update the MAC address information when type/length is not
-         * EndOfField byte and the length of Custom field is 17.
-         */
-        if((fruData[fieldOffset] != 0xc1) && ((uint8_t)17 == (fruData[fieldOffset] & (uint8_t)0x3f)))
+        shiftOffset = fieldOffset;
+
+        if (fruData[fieldOffset] != fru::endOfFieldByte)  // not C1 - not EndOfField
         {
-            sprintf(macAddressStr, "%02X:%02X:%02X:%02X:%02X:%02X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
-
-            /*
-             * Update 17 bytes of MAC address information
-             */
-            fieldOffset++;
-            for(uint32_t i = 0; i < 17; i++)
+            uint8_t boardExtraOneFieldLength = fruData[fieldOffset] & fru::fieldLengthByteMask;
+            if (!boardExtraOneFieldLength)
             {
-                fruData[fieldOffset + i] = macAddressStr[i];
+                /* Board Extra 1 field length is 0: add MAC address and transit the data from the 2nd Board Extra field */
+                shiftOffset++;
+                shiftFlag = true;
             }
-
-            /*
-             * Re-caculate the checksum of Board Information Area.
-             */
-            boardLeng = fruData[areaOffset + 1] * 8;
-            for(uint32_t i = 0; i < boardLeng -1; i++)
+            else if (boardExtraOneFieldLength != fru::board::macAddressLength)
             {
-                checkSumVal += fruData[areaOffset + i];
+                /*
+                * MAC address in Board Extra 1 is invalid:
+                * Add MAC address and transit the data from the new shift offset
+                * which is the byte next to the end of the board extra fields
+                * (padding fields are not included); The invalid field will be overriden;
+                */
+                shiftOffset += boardExtraOneFieldLength + 1;
+                shiftFlag = true;
             }
-
-            checkSumVal = ~checkSumVal + 1;
-            fruData[areaOffset + boardLeng - 1] = checkSumVal;
-
-            retVal = true;
         }
         else
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-            "FRU does not include MAC address information");
+            /* There is no Board Extra field: add MAC address and transit the data */
+            shiftFlag = true;
         }
     }
     else
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
         "FRU does not include Board Information Area");
+        return retVal;
+    }
+    if (shiftFlag)
+    {
+        shiftSpace = fru::board::macAddressLength  + 1 - (shiftOffset - fieldOffset);
+        shiftBuffer.assign(fruData.begin() + shiftOffset, fruData.end());
+        /*Resize fruData vector to the end of MAC address field*/
+        fruData.resize(fieldOffset + fru::board::macAddressLength + 1);
     }
 
+    /* Update the Board Extra 1 field type/length byte */
+    fruData[fieldOffset] = fru::board::macAddressLength | fru::fieldTypeMask;
+    sprintf(macAddressStr, "%02X:%02X:%02X:%02X:%02X:%02X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
+    /*
+    * Update 17 bytes of MAC address information
+    */
+    for (uint32_t i=0; i < fru::board::macAddressLength; i++)
+    {
+        fruData[fieldOffset + 1 + i] = macAddressStr[i];
+    }
+
+    if (shiftFlag)
+    {
+        /* shiftSpace has to be divisible by 8 */
+        if (shiftSpace % 8)
+        {
+            /*Number of bytes to be removed to compensate shiftSpace*/
+            uint32_t shiftRedundancy = shiftSpace >= 0 ? shiftSpace % 8 : 8 - std::abs(shiftSpace % 8);
+            uint32_t zeroCount = 0, boardInfoAreaRemainingLength = boardInfoAreaLength - (shiftOffset - boardInfoAreaOffset);
+            uint8_t paddingOffset = 0;
+            if (shiftBuffer[paddingOffset] != fru::endOfFieldByte)
+            {
+                /*
+                 * There are likely more than 1 board extra fields
+                 * Look for the end of Board Extra fields
+                 */
+                while (shiftBuffer[paddingOffset] != 0xc1)
+                {
+                    paddingOffset += (shiftBuffer[paddingOffset] & fru::fieldLengthByteMask) + 1;
+                }
+                paddingOffset++;
+            }
+
+            /* Enlist the zero elements for shiftRedundancy compensation */
+            zeroCount = boardInfoAreaRemainingLength - paddingOffset - 1;
+            if (zeroCount >= shiftRedundancy)
+            {
+                shiftBuffer.erase(shiftBuffer.begin() + paddingOffset, shiftBuffer.begin() + paddingOffset + shiftRedundancy);
+                shiftSpace -= shiftRedundancy;
+            }
+            /* Use zero padding if shift redundancy can not be compensated */
+            else
+            {
+                /*Number of bytes to be added to complement shiftSpace*/
+                uint32_t shiftPadding = shiftSpace >= 0 ? 8 - (shiftSpace % 8) : std::abs(shiftSpace);
+                shiftSpace += shiftPadding;
+                /*Pad zero to the padding field of Board Info Area*/
+                shiftBuffer.insert(shiftBuffer.begin() + boardInfoAreaRemainingLength - 1, shiftPadding, 0x00);
+            }
+        }
+
+        /* Re-calculate Board Info Area length
+        Board Info Area Start offset stays the same */
+        boardInfoAreaLength += shiftSpace;
+        fruData[boardInfoAreaOffset + 1] = (uint8_t)boardInfoAreaLength/8;
+
+        uint32_t productInfoAreaOffset = fruData[fru::commonHeader::productOffset]*8;
+        if (productInfoAreaOffset)
+        {
+            /* Re-calculate Product Info Area Starting Offset */
+            fruData[fru::commonHeader::productOffset] += shiftSpace/8;
+        }
+
+        uint32_t multiRecAreaOffset = fruData[fru::commonHeader::multiRecOffset]*8;
+        if (multiRecAreaOffset)
+        {
+            /* Re-calculate Multi-Record Area Starting Offset */
+            fruData[fru::commonHeader::multiRecOffset] += shiftSpace/8;
+        }
+        /*
+        * Re-caculate the checksum of Common Header Area.
+        */
+        if (productInfoAreaOffset || multiRecAreaOffset)
+        {
+            for(uint32_t i = 0; i < fru::commonHeader::length - 1; i++)
+            {
+                checkSumVal += fruData[i];
+            }
+            checkSumVal = ~checkSumVal + 1;
+            fruData[fru::commonHeader::length - 1] = checkSumVal;
+        }
+
+        /* Re-insert the shiftBuffer to the fruData vector */
+        fruData.insert(fruData.end(), shiftBuffer.begin(), shiftBuffer.end());
+    }
+    /*
+    * Re-caculate the checksum of Board Information Area.
+    */
+    checkSumVal = 0;
+    for(uint32_t i = 0; i < boardInfoAreaLength - 1; i++)
+    {
+        checkSumVal += fruData[boardInfoAreaOffset + i];
+    }
+    checkSumVal = ~checkSumVal + 1;
+    fruData[boardInfoAreaOffset + boardInfoAreaLength - 1] = checkSumVal;
+
+    retVal = true;
     return retVal;
 }
 

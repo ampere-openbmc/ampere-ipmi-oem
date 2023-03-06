@@ -52,6 +52,29 @@ std::string hostFWService = "xyz.openbmc_project.Software.BMC.Updater";
 std::string hostFWObject = "/xyz/openbmc_project/software/bios_active";
 std::string hostFWInf = "xyz.openbmc_project.Software.Version";
 std::string hostFwRevisionFs = "/var/lib/host_fw_revision";
+
+namespace fru
+{
+constexpr uint8_t fieldLengthByteMask = 0x3f;
+constexpr uint8_t fieldTypeMask = 0xc0;
+constexpr uint8_t endOfFieldByte = 0xc1;
+
+namespace board
+{
+constexpr uint8_t manuNameOffset = 0x06;
+constexpr uint8_t predefinedFieldNum = 0x05;
+constexpr uint8_t macAddressLength = 17;
+} // end of board namespace
+
+namespace commonHeader
+{
+constexpr uint8_t boardOffset = 0x03;
+constexpr uint8_t productOffset = 0x04;
+constexpr uint8_t multiRecOffset = 0x05;
+constexpr uint8_t length = 0x08;
+} // end of commonHeader namespace
+} // end of fru namespace
+
 namespace ipmi
 {
 namespace ampere
