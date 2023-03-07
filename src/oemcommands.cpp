@@ -62,6 +62,8 @@ constexpr static const char* pldmService = "xyz.openbmc_project.PLDM";
 constexpr static const char* pldmSensorValInterface =
     "xyz.openbmc_project.Sensor.Value";
 constexpr static const char* pldmSensorValPro = "Value";
+constexpr static const char* pldmSensorMaxValPro = "MaxValue";
+constexpr static const char* pldmSensorMinValPro = "MinValue";
 
 static inline auto response(uint8_t cc)
 {
@@ -976,17 +978,17 @@ ipmi::RspType<uint8_t> ipmiTriggerHostFWCrashDump()
  *          0xFF: An error occurs.
  */
 static ipmi::RspType<> setSoCPowerLimit(
-                                       ipmi::Context::ptr ctx,
+                                       [[maybe_unused]]ipmi::Context::ptr ctx,
                                        uint8_t upper,
                                        uint8_t lower
                                      )
 {
-    uint8_t completeCode = 0x00;
+    ipmi::Cc completeCode = ipmi::ccSuccess;
     uint16_t pwrLimit = ((uint16_t)upper << 8) | (uint16_t)lower;
     bool supportFlg = false;
 
     /*
-     * The SoC power limit is configure in "SoC" property
+     * The SoC power limit is configured in "SoC" property
      */
     if (!powerLimitJsonData.is_discarded())
     {
@@ -1004,58 +1006,82 @@ static ipmi::RspType<> setSoCPowerLimit(
         {
             supportFlg = true;
             auto pldmSensors = powerLimitJsonData.at("SoC").at("pldm");
+            auto sdBus = getSdBus();
 
             if (pldmSensors.is_array())
             {
-                try
+                /*
+                    * Each PLDM sensor has 2 properties: 
+                    *     - objectPath: D-bus object path
+                    *     - requiredFlag: this sensor is mandatory or not
+                    */
+                for (const auto& entity : pldmSensors)
                 {
-                    /*
-                     * Each PLDM sensor has 2 properties: 
-                     *     - objectPath: D-bus object path
-                     *     - requiredFlag: this sensor is mandatory or not
-                     */
-                    for (const auto& entity : pldmSensors)
+                    std::string ojctPath;
+                    bool flag = true;
+                    
+                    try
                     {
-                        std::string ojctPath =
-                                    entity.at("objectPath").get<std::string>();
-                        bool flag = entity.at("requiredFlag").get<bool>();
+                        ojctPath = entity.at("objectPath").get<std::string>();
+                        flag = entity.at("requiredFlag").get<bool>();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        log<level::ERR>(
+                                "Can not parse power limit configuration data");
+                        completeCode = ipmi::ccUnspecifiedError;
+                        break;
+                    }
 
+                    try
+                    {
                         /*
-                         * TODO: Check the input value is out of range or not by
-                         * getting min/max value.
+                         * Check the limit range of the sensor, if the
+                         * min/max value is "nan" then skip checking
                          */
-                        boost::system::error_code ec =
-                            ipmi::setDbusProperty(ctx, pldmService, 
-                                ojctPath.c_str(), pldmSensorValInterface, 
-                                pldmSensorValPro, (double)pwrLimit);
+                        double maxVal = std::get<double>(
+                                ipmi::getDbusProperty(*sdBus, pldmService,
+                                ojctPath.c_str(), pldmSensorValInterface,
+                                pldmSensorMaxValPro));
 
-                        /*
-                         * If the setting dbus property are fail and this is a
-                         * mandatory sensor then request will be stopped.
-                         */
-                        if (ec)
+                        double minVal = std::get<double>(
+                                ipmi::getDbusProperty(*sdBus, pldmService,
+                                ojctPath.c_str(), pldmSensorValInterface,
+                                pldmSensorMinValPro));
+
+                        if ((!std::isnan(maxVal) &&
+                                ((uint16_t)maxVal < pwrLimit)) ||
+                            (!std::isnan(minVal) &&
+                                ((uint16_t)minVal > pwrLimit)))
                         {
-                            if (true == flag)
-                            {
-                                log<level::ERR>("Error: Can not set the power \
-                                                limit to mandatory sensor");
-                                completeCode = 0xd5;
-                                break;
-                            }
-                            else
-                            {
-                                log<level::INFO>("Infor: Can not set the power \
-                                                limit to non-mandatory sensor");
-                                continue;
-                            }
+                            completeCode = ipmi::ccParmOutOfRange;
+                            break;
+                        }
+
+                        ipmi::setDbusProperty(*sdBus, pldmService,
+                            ojctPath.c_str(), pldmSensorValInterface,
+                            pldmSensorValPro, (double)pwrLimit);
+                    }
+                    catch (const std::exception& e)
+                    {
+                        /*
+                         * If the setting dbus property are fail and this is
+                         * a mandatory sensor then request will be stopped.
+                         */
+                        if (true == flag)
+                        {
+                            log<level::ERR>(
+                                "Error: Can not set the power limit");
+                            completeCode = ipmi::ccCommandNotAvailable;
+                            break;
+                        }
+                        else
+                        {
+                            log<level::INFO>(
+                                "Infor: Can not set the power limit");
+                            continue;
                         }
                     }
-                }
-                catch (const std::exception& e)
-                {
-                    completeCode = 0xFF;
-                    log<level::ERR>(
-                            "Can not parse power limit configuration data");
                 }
             }
         }
@@ -1066,7 +1092,7 @@ static ipmi::RspType<> setSoCPowerLimit(
      */
     if (!supportFlg)
     {
-        completeCode = 0xd6;
+        completeCode = ipmi::ccCommandDisabled;
     }
 
     return ipmi::response(completeCode);
@@ -1086,7 +1112,7 @@ static ipmi::RspType<> setSoCPowerLimit(
  */
 static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
 {
-    uint8_t completeCode = 0x00;
+    ipmi::Cc completeCode = ipmi::ccSuccess;
     uint16_t pwrLimit = 0;
     bool supportFlg = false;
 
@@ -1138,15 +1164,15 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
                         {
                             if (true == flag)
                             {
-                                log<level::ERR>("Error: Can not get the power \
-                                            limit of mandatory sensors");
-                                completeCode = 0xD5;
+                                log<level::ERR>(
+                                    "Error: Can not get the power limit");
+                                completeCode = ipmi::ccCommandNotAvailable;
                                 break;
                             }
                             else
                             {
-                                log<level::INFO>("Infor: Can not get the power \
-                                            limit of non-mandatory sensors");
+                                log<level::INFO>(
+                                    "Infor: Can not get the power limit");
                                 continue;
                             }
                         }
@@ -1161,14 +1187,14 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
                         }
                         else if (pwrLimit != (uint16_t)dbusVal)
                         {
-                            completeCode = 0xff;
+                            completeCode = ipmi::ccUnspecifiedError;
                             break;
                         }
                     }
                 }
                 catch (const std::exception& e)
                 {
-                    completeCode = 0xFF;
+                    completeCode = ipmi::ccUnspecifiedError;
                     log<level::ERR>(
                             "Can not parse power limit configuration data");
                 }
@@ -1181,10 +1207,10 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
      */
     if (!supportFlg)
     {
-        completeCode = 0xd6;
+        completeCode = ipmi::ccCommandDisabled;
     }
 
-    if (completeCode != 0x00)
+    if (completeCode != ipmi::ccSuccess)
     {
         return ipmi::response(completeCode);
     }
