@@ -1319,11 +1319,249 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
                          (uint8_t)(pwrLimit & 0xff));
 }
 
+/**
+ *  @brief Implement Set DRAM Max Throttle Enable sensor
+ *
+ *  @param[in] status - the status of sensor
+ *                      0x00: Disable
+ *                      0x01: Enable
+ *
+ *  @return IPMI completion code
+ *      - Competetion code:
+ *          0x00: Success
+ *          0xC7: Request Data length is invalid.
+ *          0xD5: The BMC could not send the data to the host.
+ *          0xD6: This platform does not support.
+ *          0xFF: An error occurs.
+ */
+static ipmi::RspType<> setDRAMMaxThrottleEnable(
+                                            ipmi::Context::ptr ctx,
+                                            uint8_t status)
+{
+    ipmi::Cc completeCode = ipmi::ccSuccess;
+    bool supportFlg = false;
+
+    if ((status != 0x00) && (status != 0x01))
+    {
+        return ipmi::response(ipmi::ccUnspecifiedError);
+    }
+
+    /*
+     * The DRAM Max Throttle Enable option is configured in "DRAM" property
+     */
+    if (!powerLimitJsonData.is_discarded())
+    {
+        /*
+         * Depend on the platform, seting DRAM Max Throttle Enable can be
+         * implemented by different solutions such as PLDM, SCP ...
+         * This function could be updated when new method is provided.
+         */
+
+        /*
+         * Set DRAM Max Throttle Enable via PLDM's sensors
+         */
+        if ((powerLimitJsonData.contains("DRAM")) &&
+            (powerLimitJsonData.at("DRAM").contains("pldm")))
+        {
+            supportFlg = true;
+            auto pldmSensors = powerLimitJsonData.at("DRAM").at("pldm");
+
+            if (pldmSensors.is_array())
+            {
+                /*
+                    * Each PLDM sensor has 2 properties:
+                    *     - objectPath: D-bus object path
+                    *     - requiredFlag: this sensor is mandatory or not
+                    */
+                for (const auto& entity : pldmSensors)
+                {
+                    std::string ojctPath;
+                    bool flag = false;
+
+                    try
+                    {
+                        ojctPath = entity.at("objectPath").get<std::string>();
+                        flag = entity.at("requiredFlag").get<bool>();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        log<level::ERR>(
+                                "Can not parse Json configuration data");
+                        completeCode = ipmi::ccUnspecifiedError;
+                        break;
+                    }
+
+                    boost::system::error_code ec =
+                        ipmi::setDbusProperty(ctx, pldmService,
+                            ojctPath.c_str(), pldmSensorValInterface,
+                            pldmSensorValPro, (double)status);
+
+                    /*
+                     * If the setting dbus property are fail and this is a
+                     * mandatory sensor then request will be stopped.
+                     */
+                    if (ec)
+                    {
+                        if (true == flag)
+                        {
+                            log<level::ERR>(
+                                "Error: Can not set DRAM Max Throttle Enable");
+                            completeCode = ipmi::ccCommandNotAvailable;
+                            break;
+                        }
+                        else
+                        {
+                            log<level::INFO>(
+                                "Info: Can not set DRAM Max Throttle Enable");
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /*
+     * This platform does not support any method to set DRAM Max Throttle Enable
+     */
+    if (!supportFlg)
+    {
+        completeCode = ipmi::ccCommandDisabled;
+    }
+
+    return ipmi::response(completeCode);
+}
+
+/**
+ *  @brief Implement get DRAM Max Throttle Enbale command
+ *
+ *  @return IPMI completion code plus response data
+ *      - Competetion code:
+ *          0x00: Success
+ *          0xD5: The BMC could not send the data to the host.
+ *          0xD6: This platform does not support.
+ *          0xFF: An error occurs.
+ *      - Current DRAM Max Throttle Enale status
+ *          0x00: Disable
+ *          0x01: Enable
+ */
+static ipmi::RspType<uint8_t> getDRAMMaxThrottleEnable(ipmi::Context::ptr ctx)
+{
+    ipmi::Cc completeCode = ipmi::ccSuccess;
+    std::optional<uint8_t> dramStatus = std::nullopt;
+    bool supportFlg = false;
+
+    /*
+     * The DRAM MAX Throttle Enable option is configured in "DRAM" property
+     */
+    if (!powerLimitJsonData.is_discarded())
+    {
+        /*
+         * Depend on the platform, Geting DRAM Max Throttle Enable can be
+         * implemented by different solutions such as PLDM, SCP ...
+         * This function could be updated when new method is provided.
+         */
+
+        /*
+         * Get DRAM Max Throttle Enable via PLDM's sensors
+         */
+        if ((powerLimitJsonData.contains("DRAM")) &&
+            (powerLimitJsonData.at("DRAM").contains("pldm")))
+        {
+            supportFlg = true;
+            auto pldmSensors = powerLimitJsonData.at("DRAM").at("pldm");
+
+            if (pldmSensors.is_array())
+            {
+                /*
+                 * Each PLDM sensor has 2 properties:
+                 *     - objectPath: D-bus object path
+                 *     - requiredFlag: this sensor is mandatory or not
+                 */
+                for (const auto& entity : pldmSensors)
+                {
+                    std::string ojctPath;
+                    bool flag = false;
+
+                    try
+                    {
+                        ojctPath = entity.at("objectPath").get<std::string>();
+                        flag = entity.at("requiredFlag").get<bool>();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        log<level::ERR>(
+                                "Can not parse Json configuration data");
+                        completeCode = ipmi::ccUnspecifiedError;
+                        break;
+                    }
+
+                    double dbusVal = 0;
+                    boost::system::error_code ec =
+                        ipmi::getDbusProperty(ctx, pldmService,
+                            ojctPath.c_str(), pldmSensorValInterface,
+                            pldmSensorValPro, dbusVal);
+
+                    /*
+                     * If the setting dbus property are fail and this is a
+                     * mandatory sensor then request will be stopped.
+                     */
+                    if (ec)
+                    {
+                        if (true == flag)
+                        {
+                            log<level::ERR>(
+                                "Error: Can not get DRAM Max Throttle Enable");
+                            completeCode = ipmi::ccCommandNotAvailable;
+                            break;
+                        }
+                        else
+                        {
+                            log<level::INFO>(
+                                "Info: Can not get DRAM Max Throttle Enable");
+                            continue;
+                        }
+                    }
+
+                    /*
+                     * When the status of sensors are different, BMC
+                     * indicates this is an error.
+                     */
+                    if (dramStatus == std::nullopt)
+                    {
+                        dramStatus = (uint8_t)dbusVal;
+                    }
+                    else if (dramStatus != (uint8_t)dbusVal)
+                    {
+                        completeCode = ipmi::ccUnspecifiedError;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /*
+     * This platform does not support any method to get DRAM MAX Throttle Enable
+     */
+    if (!supportFlg)
+    {
+        completeCode = ipmi::ccCommandDisabled;
+    }
+
+    if (completeCode != ipmi::ccSuccess)
+    {
+        return ipmi::response(completeCode);
+    }
+
+    return ipmi::response(completeCode, dramStatus.value());
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
     /*
-     * Parse SoC power limit configuration
+     * Parse power limit configuration
      */
     parsePowerLimitCfg();
 
@@ -1366,4 +1604,10 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdGetSoCPowerLimit,
                           ipmi::Privilege::Admin, getSoCPowerLimit);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetDRAMMaxThrottleEnable,
+                          ipmi::Privilege::Admin, setDRAMMaxThrottleEnable);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdGetDRAMMaxThrottleEnable,
+                          ipmi::Privilege::Admin, getDRAMMaxThrottleEnable);
 }
