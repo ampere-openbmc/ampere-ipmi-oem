@@ -1020,6 +1020,19 @@ static bool checkPldmEffecterTriggerScriptExist()
         return 1;
 }
 
+/** @brief Check ampere_scandump_mode.sh script is exist
+ *  @param - None
+ *  @returns IPMI completion code: 0x00: exist, 0x01: Not exist.
+ */
+static bool checkScandumpModeScriptExist()
+{
+    /* Check ampere_scandump_mode.sh script is exist */
+    if (!access(scandump::script.c_str(), F_OK))
+        return fileExists;
+    else
+        return fileNotExists;
+}
+
 /** @brief implements Ampere IPMI OEM Command Trigger Host Firmware Crash Dump
  *  @param - none
  *  @returns IPMI completion code: 0x00: Success
@@ -1557,6 +1570,89 @@ static ipmi::RspType<uint8_t> getDRAMMaxThrottleEnable(ipmi::Context::ptr ctx)
     return ipmi::response(completeCode, dramStatus.value());
 }
 
+/** @brief implements Ampere IPMI OEM Command Enable/Disable Scandump mode
+ *  @param - 1 : Enable Scandump mode
+ *         - 0 : Disable Scandump mode
+ *  @returns IPMI completion code: 0x00: Success
+ *                                 0xD6: This platform does not support
+ *                                 0xFF: An error occurs
+ */
+ipmi::RspType<> ipmiSetScandumpMode(uint8_t mode)
+{
+    std::string cmd;
+
+    /* Check ampere_scandump_mode.sh script is exist */
+    if (checkScandumpModeScriptExist() == fileNotExists)
+    {
+        log<level::ERR>("Error: ampere_scandump_mode.sh "
+            "script does not exist");
+        return ipmi::response(ipmi::ccCommandDisabled);
+    }
+
+    if (mode == scandump::mode::enable)
+    {
+        cmd = scandump::script + " enable";
+    }
+    else if (mode == scandump::mode::disable)
+    {
+        cmd = scandump::script + " disable";
+    }
+    else
+    {
+        log<level::ERR>("Error: Invalid mode");
+        return ipmi::response(ipmi::ccUnspecifiedError);
+    }
+
+    /* Call ampere_scandump_mode.sh script to trigger scandump mode */
+    if (system(cmd.c_str()) == -1)
+    {
+        log<level::ERR>("Can not set scandump mode");
+        return ipmi::response(ipmi::ccUnspecifiedError);
+    }
+
+    return ipmi::responseSuccess();
+}
+
+/** @brief implements Ampere IPMI OEM Command to get Scandump mode status
+ *  @param - None
+ *  @returns - IPMI completion code: 0x00: Success
+ *                                 0xD6: This platform does not support
+ *                                 0xFF: An error occurs
+ *           - Current Scan Dump mode state: 0x00: Disable, 0x01: Enabled
+ */
+ipmi::RspType<uint8_t> ipmiGetScandumpMode()
+{
+    std::string cmd;
+    int scandumpStt;
+
+    /* Check ampere_scandump_mode.sh script is exist */
+    if (checkScandumpModeScriptExist() == fileNotExists)
+    {
+        log<level::ERR>("Error: ampere_scandump_mode.sh "
+            "script does not exist");
+        return ipmi::response(ipmi::ccCommandDisabled);
+    }
+
+    cmd = scandump::script + " getstatus";
+    /* Call ampere_scandump_mode.sh script to get scandump mode status */
+    scandumpStt = system(cmd.c_str());
+    if (scandumpStt == -1)
+    {
+        log<level::ERR>("Can not get scandump mode");
+        return ipmi::response(ipmi::ccUnspecifiedError);
+    }
+    if (WEXITSTATUS(scandumpStt) == scandump::mode::enable)
+    {
+        /* Scandump mode is enabled */
+        return ipmi::responseSuccess(scandump::mode::enable);
+    }
+    else
+    {
+        /* Scandump mode is disabled */
+        return ipmi::responseSuccess(scandump::mode::disable);
+    }
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
@@ -1610,4 +1706,10 @@ void registerOEMFunctions()
     ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
                           ipmi::general::cmdGetDRAMMaxThrottleEnable,
                           ipmi::Privilege::Admin, getDRAMMaxThrottleEnable);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdSetScandumpmode,
+                          ipmi::Privilege::Admin, ipmiSetScandumpMode);
+    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+                          ipmi::general::cmdGetScandumpmode,
+                          ipmi::Privilege::Admin, ipmiGetScandumpMode);
 }

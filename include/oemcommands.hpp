@@ -22,6 +22,7 @@
 constexpr uint8_t responseEnabled = 0x00;
 constexpr uint8_t responseFail = 0x01;
 constexpr uint8_t responseDisabled = 0x01;
+constexpr uint8_t fileExists = 0x00;
 constexpr uint8_t fileNotExists = 0x01;
 constexpr uint8_t responseInvalidFanNum = 0x01;
 constexpr uint8_t responseSetFanError = 0x02;
@@ -52,6 +53,16 @@ std::string hostFWService = "xyz.openbmc_project.Software.BMC.Updater";
 std::string hostFWObject = "/xyz/openbmc_project/software/bios_active";
 std::string hostFWInf = "xyz.openbmc_project.Software.Version";
 std::string hostFwRevisionFs = "/var/lib/host_fw_revision";
+
+namespace scandump
+{
+std::string script = "/usr/sbin/ampere_scandump_mode.sh";
+namespace mode
+{
+constexpr uint8_t enable = 0x01;
+constexpr uint8_t disable = 0x00;
+} // namespace mode
+} // namespace scandump
 
 namespace fru
 {
@@ -94,6 +105,8 @@ constexpr uint8_t cmdScpRead = 0x17;
 constexpr uint8_t cmdScpWrite = 0x18;
 constexpr uint8_t cmdSetDRAMMaxThrottleEnable = 0x1e;
 constexpr uint8_t cmdGetDRAMMaxThrottleEnable = 0x1f;
+constexpr uint8_t cmdSetScandumpmode = 0x25;
+constexpr uint8_t cmdGetScandumpmode = 0x26;
 constexpr uint8_t cmdUartSW = 0xb0;
 constexpr uint8_t cmdSetHostFWRevision = 0xf0;
 constexpr uint8_t cmdSetFWInbandUpdateStatus = 0xf6;
