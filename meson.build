@@ -65,7 +65,6 @@ zampoemcmds_lib = library(
   'src/oemcommands.cpp',
   'src/redfishhostinterface.cpp',
   'src/storagecommands.cpp',
-  'src/dcmihandleroverride.cpp',
   implicit_include_directories: false,
   dependencies: zampoemcmds_pre,
   version: meson.project_version(),
