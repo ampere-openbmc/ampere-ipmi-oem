@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <systemd/sd-journal.h>
+
 #include <ipmid/api.hpp>
 #include <ipmid/types.hpp>
 #include <ipmid/utils.hpp>
@@ -305,11 +307,8 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 				"Boot progress code: " + bpRecordStr;
 			stream << bpRecordEventLogStr << std::endl;
 			message = stream.str();
-			std::string redfishMsgId("OpenBMC.0.1.AmpereEvent.OK");
-			sd_journal_send("REDFISH_MESSAGE_ID=%s",
-					redfishMsgId.c_str(),
-					"REDFISH_MESSAGE_ARGS=%s",
-					message.c_str(), NULL);
+			sd_journal_send( "MESSAGE=%s",
+					message.c_str(), "PRIORITY=%i", LOG_INFO, NULL);
 		}
 
 		/* Adding to d-bus for support Redfish report
