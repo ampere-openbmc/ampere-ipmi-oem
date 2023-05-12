@@ -22,44 +22,41 @@
 #include <ipmid/utils.hpp>
 
 auto ipmiAppGetSiCapabilities(uint8_t sysIfcType)
-    -> ipmi::RspType<uint8_t, uint8_t, uint8_t, uint8_t>
+	-> ipmi::RspType<uint8_t, uint8_t, uint8_t, uint8_t>
 {
-    uint8_t reserved = 0x00;
-    uint8_t tranSupport;
-    uint8_t inputMsgSize;
-    uint8_t outputMsgSize;
-    switch (sysIfcType & 0xF)
-    {
-        case 0:
-            //SSIF
-            // multi-part read/write supported. Start, Middle, and End
-            // transactions supported. PEC supported.
-            tranSupport = 0x88;
-            inputMsgSize = 0xff;
-            outputMsgSize = 0xff -3; //minus 3 is to drop len, netfn, lun, cmd
-            break;
-        case 1:
-        case 2:
-            //KCS or SMIC
-            tranSupport = 0x00;
-            inputMsgSize = 0xff;
-            break;
-        default:
-            return ipmi::responseInvalidFieldRequest();
-    }
+	uint8_t reserved = 0x00;
+	uint8_t tranSupport;
+	uint8_t inputMsgSize;
+	uint8_t outputMsgSize;
+	switch (sysIfcType & 0xF) {
+	case 0:
+		//SSIF
+		// multi-part read/write supported. Start, Middle, and End
+		// transactions supported. PEC supported.
+		tranSupport = 0x88;
+		inputMsgSize = 0xff;
+		outputMsgSize =
+			0xff - 3; //minus 3 is to drop len, netfn, lun, cmd
+		break;
+	case 1:
+	case 2:
+		//KCS or SMIC
+		tranSupport = 0x00;
+		inputMsgSize = 0xff;
+		break;
+	default:
+		return ipmi::responseInvalidFieldRequest();
+	}
 
-    return ipmi::responseSuccess(reserved, tranSupport, inputMsgSize,
-                                 outputMsgSize);
+	return ipmi::responseSuccess(reserved, tranSupport, inputMsgSize,
+				     outputMsgSize);
 }
 
 void registerAppFunctions() __attribute__((constructor));
 void registerAppFunctions()
 {
-    // <Get System Interface Capabilities>
-    ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
-                          ipmi::app::cmdGetSystemIfCapabilities,
-                          ipmi::Privilege::User, ipmiAppGetSiCapabilities);
-
+	// <Get System Interface Capabilities>
+	ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::netFnApp,
+			      ipmi::app::cmdGetSystemIfCapabilities,
+			      ipmi::Privilege::User, ipmiAppGetSiCapabilities);
 }
-
-

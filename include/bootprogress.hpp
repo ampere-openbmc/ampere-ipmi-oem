@@ -29,28 +29,27 @@
 
 using namespace phosphor::logging;
 
-#define BASE 16
+#define BASE	   16
 #define ERROR_CODE 0x02
 
-using postcodeData = std::tuple<uint64_t, std::vector<uint8_t>>;
+using postcodeData = std::tuple<uint64_t, std::vector<uint8_t> >;
 
-std::string hostProcessorEC[14] =
-    {
-        "Invalid type",
-        "Invalid speed",
-        "Mismatch detected between two instances",
-        "A watchdog timer expired",
-        "Instance detected an error during BIST",
-        "Instance detected an IERR",
-        "An over temperature was detected",
-        "Voltage dropped below the low voltage threshold",
-        "Voltage surpassed the high voltage threshold",
-        "Cache failure",
-        "Microcode update failed",
-        "Correctable error",
-        "Uncorrectable ECC error",
-        "No matching microcode update",
-    };
+std::string hostProcessorEC[14] = {
+	"Invalid type",
+	"Invalid speed",
+	"Mismatch detected between two instances",
+	"A watchdog timer expired",
+	"Instance detected an error during BIST",
+	"Instance detected an IERR",
+	"An over temperature was detected",
+	"Voltage dropped below the low voltage threshold",
+	"Voltage surpassed the high voltage threshold",
+	"Cache failure",
+	"Microcode update failed",
+	"Correctable error",
+	"Uncorrectable ECC error",
+	"No matching microcode update",
+};
 
 std::string bpService = "xyz.openbmc_project.State.Host";
 std::string bpObject = "/xyz/openbmc_project/state/host0";
@@ -67,11 +66,11 @@ namespace ipmi
 {
 namespace ampere
 {
-constexpr uint8_t groupExtIpmi = 0xae;
+	constexpr uint8_t groupExtIpmi = 0xae;
 } // namespace ampere
 namespace general
 {
-constexpr uint8_t cmdSendBootProgressCode = 0x02;
-constexpr uint8_t cmdGetBootProgressCode = 0x03;
+	constexpr uint8_t cmdSendBootProgressCode = 0x02;
+	constexpr uint8_t cmdGetBootProgressCode = 0x03;
 } // namespace general
 } // namespace ipmi

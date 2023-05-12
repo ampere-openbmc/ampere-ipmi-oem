@@ -33,4 +33,4 @@ static constexpr uint8_t oemEventFirst = 0xE0;
 static constexpr uint8_t oemEventLast = 0xFF;
 static constexpr size_t oemEventSize = 13;
 static constexpr uint8_t eventMsgRev = 0x04;
-}
+} // namespace ampere_oem::ipmi::sel

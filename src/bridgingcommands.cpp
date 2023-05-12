@@ -33,27 +33,27 @@ static bool eventMessageBufferFlag = false;
 
 void Bridging::clearResponseQueue()
 {
-    responseQueue.clear();
+	responseQueue.clear();
 }
 
 void Bridging::insertMessageInQueue(IpmbResponse msg)
 {
-    responseQueue.insert(responseQueue.end(), std::move(msg));
+	responseQueue.insert(responseQueue.end(), std::move(msg));
 }
 
 void Bridging::eraseMessageFromQueue()
 {
-    responseQueue.erase(responseQueue.begin());
+	responseQueue.erase(responseQueue.begin());
 }
 
 IpmbResponse Bridging::getMessageFromQueue()
 {
-    return responseQueue.front();
+	return responseQueue.front();
 }
 
 std::size_t Bridging::getResponseQueueSize()
 {
-    return responseQueue.size();
+	return responseQueue.size();
 }
 
 /** @brief This command is used to flush unread data from the receive
@@ -70,61 +70,53 @@ std::size_t Bridging::getResponseQueueSize()
  *  @return IPMI completion code on success
  */
 ipmi::RspType<> ipmiAppClearMessageFlags(ipmi::Context::ptr ctx,
-                                         bool receiveMessage,
-                                         bool eventMsgBufFull, bool reserved2,
-                                         bool, bool reserved1,
-                                         bool, bool, bool)
+					 bool receiveMessage,
+					 bool eventMsgBufFull, bool reserved2,
+					 bool, bool reserved1, bool, bool, bool)
 {
-    ipmi::ChannelInfo chInfo;
+	ipmi::ChannelInfo chInfo;
 
-    try
-    {
-        getChannelInfo(ctx->channel, chInfo);
-    }
-    catch (sdbusplus::exception_t& e)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "ipmiAppClearMessageFlags: Failed to get Channel Info",
-            phosphor::logging::entry("MSG: %s", e.description()));
-        return ipmi::responseUnspecifiedError();
-    }
-    if (chInfo.mediumType !=
-        static_cast<uint8_t>(ipmi::EChannelMediumType::smbusV20))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "ipmiAppClearMessageFlags: Error - supported only in SSIF "
-            "interface");
-        return ipmi::responseCommandNotAvailable();
-    }
+	try {
+		getChannelInfo(ctx->channel, chInfo);
+	} catch (sdbusplus::exception_t &e) {
+		phosphor::logging::log<phosphor::logging::level::ERR>(
+			"ipmiAppClearMessageFlags: Failed to get Channel Info",
+			phosphor::logging::entry("MSG: %s", e.description()));
+		return ipmi::responseUnspecifiedError();
+	}
+	if (chInfo.mediumType !=
+	    static_cast<uint8_t>(ipmi::EChannelMediumType::smbusV20)) {
+		phosphor::logging::log<phosphor::logging::level::ERR>(
+			"ipmiAppClearMessageFlags: Error - supported only in SSIF "
+			"interface");
+		return ipmi::responseCommandNotAvailable();
+	}
 
-    if (reserved1 || reserved2)
-    {
-        return ipmi::responseInvalidFieldRequest();
-    }
+	if (reserved1 || reserved2) {
+		return ipmi::responseInvalidFieldRequest();
+	}
 
-    if (receiveMessage)
-    {
-        bridging.clearResponseQueue();
-    }
+	if (receiveMessage) {
+		bridging.clearResponseQueue();
+	}
 
-    if (eventMessageBufferFlag != true && eventMsgBufFull == true)
-    {
-        eventMessageBufferFlag = true;
-    }
+	if (eventMessageBufferFlag != true && eventMsgBufFull == true) {
+		eventMessageBufferFlag = true;
+	}
 
-    // As phosphor-watchdog has not supported PreTimeoutInterruptFlags yet,
-    // so do nothing on clear watchdog pre-timeout interrupt flags.
+	// As phosphor-watchdog has not supported PreTimeoutInterruptFlags yet,
+	// so do nothing on clear watchdog pre-timeout interrupt flags.
 
-    return ipmi::responseSuccess();
+	return ipmi::responseSuccess();
 }
 
 void registerBridingFunctions() __attribute__((constructor));
 void registerBridingFunctions()
 {
-    // <Clear Message Flags Command>
-    ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnApp,
-                          ipmi::app::cmdClearMessageFlags,
-                          ipmi::Privilege::User, ipmiAppClearMessageFlags);
+	// <Clear Message Flags Command>
+	ipmi::registerHandler(ipmi::prioOemBase, ipmi::netFnApp,
+			      ipmi::app::cmdClearMessageFlags,
+			      ipmi::Privilege::User, ipmiAppClearMessageFlags);
 
-    return;
+	return;
 }

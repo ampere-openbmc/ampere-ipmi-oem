@@ -28,14 +28,14 @@ namespace ipmi
 
 using Association = std::tuple<std::string, std::string, std::string>;
 
-using DbusVariant =
-    std::variant<std::string, bool, uint8_t, uint16_t, int16_t, uint32_t,
-                 int32_t, uint64_t, int64_t, double, std::vector<Association>>;
+using DbusVariant = std::variant<std::string, bool, uint8_t, uint16_t, int16_t,
+				 uint32_t, int32_t, uint64_t, int64_t, double,
+				 std::vector<Association> >;
 
-using GetSubTreeType = std::vector<
-    std::pair<std::string,
-              std::vector<std::pair<std::string, std::vector<std::string>>>>>;
+using GetSubTreeType = std::vector<std::pair<
+	std::string,
+	std::vector<std::pair<std::string, std::vector<std::string> > > > >;
 
-using SensorMap = std::map<std::string, std::map<std::string, DbusVariant>>;
+using SensorMap = std::map<std::string, std::map<std::string, DbusVariant> >;
 
 } // namespace ipmi

@@ -30,27 +30,26 @@ static constexpr bool debug = false;
 
 inline static void printRegistration(unsigned int netfn, unsigned int cmd)
 {
-    if constexpr (debug)
-    {
-        std::cout << "Registering NetFn:[0x" << std::hex << std::uppercase
-                  << netfn << "], Cmd:[0x" << cmd << "]\n";
-    }
+	if constexpr (debug) {
+		std::cout << "Registering NetFn:[0x" << std::hex
+			  << std::uppercase << netfn << "], Cmd:[0x" << cmd
+			  << "]\n";
+	}
 }
 
 inline static void ipmiPrintAndRegister(ipmi_netfn_t netfn, ipmi_cmd_t cmd,
-                                        ipmi_context_t context,
-                                        ipmid_callback_t handler,
-                                        ipmi_cmd_privilege_t priv)
+					ipmi_context_t context,
+					ipmid_callback_t handler,
+					ipmi_cmd_privilege_t priv)
 {
-    printRegistration(netfn, cmd);
-    ipmi_register_callback(netfn, cmd, context, handler, priv);
+	printRegistration(netfn, cmd);
+	ipmi_register_callback(netfn, cmd, context, handler, priv);
 }
 
 inline static void printCommand(unsigned int netfn, unsigned int cmd)
 {
-    if constexpr (debug)
-    {
-        std::cout << "Executing NetFn:[0x" << std::hex << std::uppercase
-                  << netfn << "], Cmd:[0x" << cmd << "]\n";
-    }
+	if constexpr (debug) {
+		std::cout << "Executing NetFn:[0x" << std::hex << std::uppercase
+			  << netfn << "], Cmd:[0x" << cmd << "]\n";
+	}
 }

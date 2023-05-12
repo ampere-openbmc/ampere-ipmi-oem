@@ -18,40 +18,38 @@
 #include <sdbusplus/message.hpp>
 #include <sdbusplus/server/interface.hpp>
 
-struct IpmbResponse
-{
-    uint8_t address;
-    uint8_t netFn;
-    uint8_t rqLun;
-    uint8_t rsSA;
-    uint8_t seq;
-    uint8_t rsLun;
-    uint8_t cmd;
-    uint8_t completionCode;
-    std::vector<uint8_t> data;
+struct IpmbResponse {
+	uint8_t address;
+	uint8_t netFn;
+	uint8_t rqLun;
+	uint8_t rsSA;
+	uint8_t seq;
+	uint8_t rsLun;
+	uint8_t cmd;
+	uint8_t completionCode;
+	std::vector<uint8_t> data;
 
-    IpmbResponse(uint8_t address, uint8_t netFn, uint8_t rqLun, uint8_t rsSA,
-                 uint8_t seq, uint8_t rsLun, uint8_t cmd,
-                 uint8_t completionCode, std::vector<uint8_t>& inputData);
+	IpmbResponse(uint8_t address, uint8_t netFn, uint8_t rqLun,
+		     uint8_t rsSA, uint8_t seq, uint8_t rsLun, uint8_t cmd,
+		     uint8_t completionCode, std::vector<uint8_t> &inputData);
 
-    void ipmbToi2cConstruct(uint8_t* buffer, size_t* bufferLength);
+	void ipmbToi2cConstruct(uint8_t *buffer, size_t *bufferLength);
 };
 
 /** @class Bridging
  *
  *  @brief Implement commands to support IPMI bridging.
  */
-class Bridging
-{
-  public:
-    Bridging() = default;
-    std::size_t getResponseQueueSize();
+class Bridging {
+    public:
+	Bridging() = default;
+	std::size_t getResponseQueueSize();
 
-    void clearResponseQueue();
-    void insertMessageInQueue(IpmbResponse msg);
-    IpmbResponse getMessageFromQueue();
-    void eraseMessageFromQueue();
+	void clearResponseQueue();
+	void insertMessageInQueue(IpmbResponse msg);
+	IpmbResponse getMessageFromQueue();
+	void eraseMessageFromQueue();
 
-  private:
-    std::vector<IpmbResponse> responseQueue;
+    private:
+	std::vector<IpmbResponse> responseQueue;
 };
