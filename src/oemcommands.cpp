@@ -506,7 +506,7 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 		if (cmdOutput.empty()) {
 			log<level::INFO>(
 				"Can not set system time while the mode is NTP");
-			return responseFailure();
+			return ipmi::responseSuccess();
 		} else {
 			/* Sync time from RTC to BMC using hwclock */
 			ret = system("hwclock --hctosys");
@@ -516,7 +516,7 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 		}
 	} catch (const std::exception &e) {
 		log<level::ERR>(e.what());
-		return responseFailure();
+		return ipmi::responseSuccess();
 	}
 
 	return ipmi::responseSuccess();
