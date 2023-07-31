@@ -21,7 +21,6 @@
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/bus/match.hpp>
 #include <sdbusplus/message.hpp>
-#include <storagecommands.hpp>
 #include <user_channel/channel_layer.hpp>
 
 #include <bitset>
