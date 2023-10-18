@@ -55,6 +55,17 @@ std::string hostFWObject = "/xyz/openbmc_project/software/bios_active";
 std::string hostFWInf = "xyz.openbmc_project.Software.Version";
 std::string hostFwRevisionFs = "/var/lib/host_fw_revision";
 
+namespace extVref
+{
+std::string script = "/usr/sbin/ampere_ext_vref_control.sh";
+namespace errorCodes
+{
+	constexpr uint8_t cmdNotSupported = 0xC1;
+	constexpr uint8_t invalidVref = 0xCC;
+	constexpr uint8_t cmdInvalid4HostOn = 0xD5;
+} // namespace errorCodes
+} // namespace extVref
+
 namespace scandump
 {
 std::string script = "/usr/sbin/ampere_scandump_mode.sh";
@@ -108,6 +119,7 @@ namespace general
 	constexpr uint8_t cmdGetDRAMMaxThrottleEnable = 0x1f;
 	constexpr uint8_t cmdSetScandumpmode = 0x25;
 	constexpr uint8_t cmdGetScandumpmode = 0x26;
+	constexpr uint8_t cmdSetExtVref = 0x27;
 	constexpr uint8_t cmdUartSW = 0xb0;
 	constexpr uint8_t cmdSetHostFWRevision = 0xf0;
 	constexpr uint8_t cmdSetFWInbandUpdateStatus = 0xf6;

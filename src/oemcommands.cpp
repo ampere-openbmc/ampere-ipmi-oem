@@ -1633,6 +1633,49 @@ ipmi::RspType<uint8_t> ipmiGetScandumpMode()
 	}
 }
 
+/** @brief implements set ext vref command
+ *  @param[in] upper - Ext Vref value (upper)
+ *  @param[in] lower - Ext Vref value (lower)
+ *  @returns IPMI completion code:
+ *             - 0x00: Success
+ *             - 0xC1: Command not supported on current platform
+ *             - 0xCC: Invalid data field in Request
+ *             - 0xD5: Command not available while chassis power is on
+ *             - 0xFF: Unspecified error
+ */
+ipmi::RspType<uint8_t> ipmiSetExtVref(uint8_t upper, uint8_t lower)
+{
+	std::string cmd;
+	uint16_t usrSetting = (upper << 8) | lower;
+	std::string extVrefStr = std::to_string(usrSetting);
+	int stt;
+
+	/* Check extVrefScript script is exist */
+	if (access(extVref::script.c_str(), F_OK|X_OK)) {
+		log<level::ERR>(
+			"Error: Command not supported on current platform");
+		return ipmi::responseInvalidCommand();
+	}
+
+	cmd = extVref::script + " " + extVrefStr;
+	stt = system(cmd.c_str());
+	if (WEXITSTATUS(stt) == extVref::errorCodes::cmdNotSupported) {
+		log<level::ERR>("Error: Command not supported on current platform");
+		return ipmi::responseInvalidCommand();
+	} else if (WEXITSTATUS(stt) == extVref::errorCodes::invalidVref) {
+		log<level::ERR>("Error: Invalid data field in request");
+		return ipmi::responseInvalidFieldRequest();
+	} else if (WEXITSTATUS(stt) == extVref::errorCodes::cmdInvalid4HostOn) {
+		log<level::ERR>("Error: Command not available while chassis power is on");
+		return ipmi::responseCommandNotAvailable();
+	} else if (WEXITSTATUS(stt) == responseError) {
+		log<level::ERR>("Error: Unspecified");
+		return ipmi::responseUnspecifiedError();
+	} else {
+		return ipmi::responseSuccess(responseEnabled);
+	}
+}
+
 void registerOEMFunctions() __attribute__((constructor));
 void registerOEMFunctions()
 {
@@ -1695,4 +1738,7 @@ void registerOEMFunctions()
 	ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
 			      ipmi::general::cmdGetScandumpmode,
 			      ipmi::Privilege::Admin, ipmiGetScandumpMode);
+	ipmi::registerHandler(ipmi::prioOpenBmcBase, ipmi::ampere::netFnAmpere,
+			      ipmi::general::cmdSetExtVref,
+			      ipmi::Privilege::Admin, ipmiSetExtVref);
 }
