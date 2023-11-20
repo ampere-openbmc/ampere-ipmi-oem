@@ -312,18 +312,29 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 		}
 
 		/* Adding to d-bus for support Redfish report
-         * Update boot progress to Redfish's LastState attribute to OEM or
-         * PCIInit.
-         * As defined in DEN0069C_SBMR_1.1 chapter F.3
-         * PCI Bus Init: EFI_IO_BUS_PCI | EFI_IOB_PC_INIT
-         * - The Redfish BootProgress.LastState will set to PCIInit with raw
-         *   data: 0x01 0x00 0x00 0x00 0x00 0x00 0x01 0x02 0x00
-         * - Otherwise, setting the BootProgress.LastState to Oem
-         */
+		* Update boot progress to Redfish's LastState attribute to OEM or
+		* PCIInit or OSRunning.
+		* - As defined in DEN0069C_SBMR_1.1 chapter F.3:
+		*   PCI Bus Init: EFI_IO_BUS_PCI | EFI_IOB_PC_INIT
+		*   The Redfish BootProgress.LastState will set to PCIInit with raw
+		*   data: 0x01 0x00 0x00 0x00 0x00 0x00 0x01 0x02 0x00
+		*
+		* - As defined in AmpereOne_Boot_Progress_Code spec:
+		*   Exit Boot Services: (EFI_SOFTWARE_EFI_BOOT_SERVICE |
+		*                        EFI_SW_BS_PC_EXIT_BOOT_SERVICES)
+		*   can mapped to OSBootStarted.
+		*   data: 0x01 0x00 0x00 0x00 0x19 0x10 0x10 0x03 0x00
+		*
+		* - Otherwise, setting the BootProgress.LastState to Oem
+		*/
 		if ((codeType == 0x01) && (severity == 0x00) &&
 		    (operation1st == 0x00) && (operation2nd == 0x00) &&
 		    (subClass == 0x01) && (codeClass == 0x02))
 			updateProgressLaststateDbus("PCIInit");
+		if ((codeType == 0x01) && (severity == 0x00) &&
+		    (operation1st == 0x19) && (operation2nd == 0x10) &&
+		    (subClass == 0x10) && (codeClass == 0x03))
+			updateProgressLaststateDbus("OSStart");
 		else
 			updateProgressLaststateDbus("OEM");
 
