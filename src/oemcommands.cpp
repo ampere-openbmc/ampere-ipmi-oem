@@ -880,8 +880,7 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 		/* Check update type */
 		if (updateType != FWUpdateEntireHostFW &&
 		    updateType != FWUpdatePreserveRW &&
-		    updateType != FWUpdateClearRW &&
-		    updateType != MCUpdate) {
+		    updateType != FWUpdateClearRW) {
 			log<level::ERR>("Error: Invalid FW inband update type");
 			return ipmi::responseCommandDisabled();
 		}
@@ -889,17 +888,6 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 		/* Create the SEL log */
 		if (updateStatus == FWUpdateStarted ||
 		    updateStatus == FWUpdateSuccess) {
-			/* FW Update start lock power control */
-			if (updateType == MCUpdate) {
-				std::string powerLockRebootCmd = "/usr/sbin/ampere_power_control_lock.sh reboot false";
-				std::string powerLockOffCmd = "/usr/sbin/ampere_power_control_lock.sh off false";
-				int retR = std::system(powerLockRebootCmd.c_str());
-				int retO = std::system(powerLockOffCmd.c_str());
-				if (retR == -1 || retO == -1) {
-					log<level::ERR>("Error: Can not lock power ");
-				}
-			}
-
 			/* Create an Ampere OK SEL event */
 			std::string messageStr =
 				"Firmware In-band Update Status: " +
@@ -922,19 +910,6 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 					"REDFISH_MESSAGE_ARGS=%s,%s",
 					"Firmware In-band Update Status",
 					messageStr.c_str(), NULL);
-		}
-		/* Unlock power control */
-		if (updateType == MCUpdate) {
-			if (updateStatus == FWUpdateSuccess ||
-			    updateStatus == FWUpdateFailure) {
-				std::string powerUnLockRebootCmd = "/usr/sbin/ampere_power_control_lock.sh reboot true";
-				std::string powerUnLockOffCmd = "/usr/sbin/ampere_power_control_lock.sh off true";
-				int retR = std::system(powerUnLockRebootCmd.c_str());
-				int retO = std::system(powerUnLockOffCmd.c_str());
-				if (retR == -1 || retO == -1) {
-					log<level::ERR>("Error: Can not unlock power ");
-				}
-			}
 		}
 	} catch (const std::exception &e) {
 		log<level::ERR>(e.what());
@@ -993,15 +968,6 @@ ipmi::RspType<uint8_t> ipmiSetHostFWRevision(ipmi::Context::ptr ctx,
 			ipmi::setDbusProperty(*bus, hostFWService, hostFWObject,
 					      hostFWInf, "Version",
 					      hostFWRevision);
-
-			/* Create an Ampere OK SEL event */
-			std::string messageStr =
-					"Set Host Firmware Revision: " + hostFWRevision;
-			std::string redfishMsgId("OpenBMC.0.1.AmpereEvent");
-			sd_journal_send("REDFISH_MESSAGE_ID=%s",
-				redfishMsgId.c_str(),
-				"REDFISH_MESSAGE_ARGS=%s",
-				messageStr.c_str(), NULL);
 
 			/* Store Host Firmware Revision to file */
 			std::ofstream hostFwFile(hostFwRevisionFs.c_str());
@@ -1127,7 +1093,7 @@ static ipmi::RspType<> setSoCPowerLimit([[maybe_unused]] ipmi::Context::ptr ctx,
 
 			if (pldmSensors.is_array()) {
 				/*
-                    * Each PLDM sensor has 2 properties:
+                    * Each PLDM sensor has 2 properties: 
                     *     - objectPath: D-bus object path
                     *     - requiredFlag: this sensor is mandatory or not
                     */
@@ -1257,7 +1223,7 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
 			if (pldmSensors.is_array()) {
 				try {
 					/*
-                     * Each PLDM sensor has 2 properties:
+                     * Each PLDM sensor has 2 properties: 
                      *     - objectPath: D-bus object path
                      *     - requiredFlag: this sensor is mandatory or not
                      */

@@ -42,12 +42,10 @@ std::string FWUpdateStatusStr[3] = {
 constexpr uint8_t FWUpdateEntireHostFW = 0x00;
 constexpr uint8_t FWUpdatePreserveRW = 0x01;
 constexpr uint8_t FWUpdateClearRW = 0x02;
-constexpr uint8_t MCUpdate = 0x03;
-std::string FWUpdateTypeStr[4] = {
+std::string FWUpdateTypeStr[3] = {
 	"entire Host FW",
 	"RO regions (preserve RW regions)",
 	"RO regions (clear RW regions)",
-	"MC update",
 };
 /* For Host Firmware Revision */
 std::string hostFWService = "xyz.openbmc_project.Software.BMC.Updater";
