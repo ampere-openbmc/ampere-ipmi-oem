@@ -20,7 +20,7 @@
 #include <ipmid/utils.hpp>
 #include <user_channel/user_layer.hpp>
 #include <user_channel/user_mgmt.hpp>
-#include <phosphor-logging/log.hpp>
+#include <phosphor-logging/lg2.hpp>
 #include <iostream>
 #include "commandutils.hpp"
 #include "redfishhostinterface.hpp"
@@ -94,7 +94,7 @@ bool getCredentialBootstrapEnabledProperty()
 			*bus, service, object, inf, "Enabled");
 		ret = std::get<bool>(bootstrapProperty);
 	} catch (const std::exception &e) {
-		log<level::ERR>(
+		lg2::error(
 			"getCredentialBootstrapEnabledProperty: can't get property");
 	}
 
@@ -112,7 +112,7 @@ void setCredentialBootstrapEnabledProperty(bool pValue)
 		ipmi::setDbusProperty(*bus, service, object, inf, "Enabled",
 				      pValue);
 	} catch (const std::exception &e) {
-		log<level::ERR>(
+		lg2::error(
 			"setCredentialBootstrapEnabledProperty: can't set property");
 	}
 }
@@ -155,7 +155,7 @@ ipmiOemAmpereCreBootstrap(ipmi::Context::ptr ctx, uint8_t bootstrapControl)
 	/* Get Enabled property within the CredentialBootstrapping property of the
      * host interface. */
 	if (getCredentialBootstrapEnabledProperty() == false) {
-		log<level::ERR>(
+		lg2::error(
 			"Enabled property within the CredentialBootstrapping "
 			"property of the host interface is false");
 		return responseCredentialBootstrappingDisabled();
@@ -190,7 +190,7 @@ ipmiOemAmpereCreBootstrap(ipmi::Context::ptr ctx, uint8_t bootstrapControl)
 		/* Enable user */
 		ipmi::ipmiUserUpdateEnabledState(userId, enableUser);
 	} else {
-		log<level::ERR>("Invalid User ID - Out of range");
+		lg2::error("Invalid User ID - Out of range");
 		return ipmi::responseParmOutOfRange();
 	}
 
@@ -200,12 +200,12 @@ ipmiOemAmpereCreBootstrap(ipmi::Context::ptr ctx, uint8_t bootstrapControl)
 	dataOut.assign(buffer, buffer + bootstrapAccLen);
 
 	if (bootstrapControl != creBootstrapEnabled) {
-		log<level::INFO>(
+		lg2::info(
 			"Enabled property within the CredentialBootstrapping "
 			"property of the host interface resource shall be set to false");
 		setCredentialBootstrapEnabledProperty(false);
 	} else {
-		log<level::INFO>("Keep credential bootstrapping enabled");
+		lg2::info("Keep credential bootstrapping enabled");
 	}
 
 	return ipmi::responseSuccess(dataOut);
@@ -247,7 +247,7 @@ ipmiHostInfCertificateFingerprint(ipmi::Context::ptr ctx, uint8_t certNum)
 
 	/* Check the certificate number, 1 based */
 	if (certNum != 1) {
-		log<level::ERR>("Certificate number is invalid");
+		lg2::error("Certificate number is invalid");
 		return responseCertNumberInvalid();
 	}
 
@@ -255,7 +255,7 @@ ipmiHostInfCertificateFingerprint(ipmi::Context::ptr ctx, uint8_t certNum)
      * host interface.
      */
 	if (getCredentialBootstrapEnabledProperty() == false) {
-		log<level::ERR>(
+		lg2::error(
 			"Enabled property within the CredentialBootstrapping "
 			"property of the host interface is false");
 		return responseCredentialBootstrappingDisabled();
@@ -270,26 +270,25 @@ ipmiHostInfCertificateFingerprint(ipmi::Context::ptr ctx, uint8_t certNum)
 		       "-inform pem -in %s > %s",
 		       OPENSSL_PATH, CERT_FILE, CERT_FINGERPRINT_FILE);
 	if (ret <= 0) {
-		log<level::ERR>("Certificate fingerprint command failed");
+		lg2::error("Certificate fingerprint command failed");
 		return ipmi::responseUnspecifiedError();
 	}
 	/* Run the commands to view the certificate fingerprint */
 	ret = system(cmd);
 	if (ret < 0) {
-		log<level::ERR>(
-			"Certificate fingerprint command execute failed");
+		lg2::error("Certificate fingerprint command execute failed");
 		return ipmi::responseUnspecifiedError();
 	}
 	/* Open the certificate file */
 	fp = fopen(CERT_FINGERPRINT_FILE, "r");
 	if (fp == NULL) {
-		log<level::ERR>("Can not open certificate file");
+		lg2::error("Can not open certificate file");
 		return ipmi::responseUnspecifiedError();
 	}
 
 	/* Get the certificate from file */
 	if (fgets(asciiStr, MAX_ASCII_CERT_LEN, fp) == NULL) {
-		log<level::ERR>("Can not get the certificate from file");
+		lg2::error("Can not get the certificate from file");
 		return ipmi::responseUnspecifiedError();
 	}
 

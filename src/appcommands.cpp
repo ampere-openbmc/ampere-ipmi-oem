@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <phosphor-logging/log.hpp>
+#include <phosphor-logging/lg2.hpp>
 #include <ipmid/api.hpp>
 #include <ipmid/sessiondef.hpp>
 #include <ipmid/sessionhelper.hpp>

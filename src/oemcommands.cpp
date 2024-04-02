@@ -17,7 +17,7 @@
 #include <ipmid/api.hpp>
 #include <ipmid/types.hpp>
 #include <ipmid/utils.hpp>
-#include <phosphor-logging/log.hpp>
+#include <phosphor-logging/lg2.hpp>
 #include <nlohmann/json.hpp>
 #include "oemcommands.hpp"
 #include <cstdlib>
@@ -117,7 +117,7 @@ static inline auto responseSetFanErrorThermalCtlNotDisabled()
 		auto mapperReply = dbus.call(mapperCall);
 		mapperReply.read(fruObjects);
 	} catch (sdbusplus::exception_t &e) {
-		log<level::ERR>("Fail to call GetManagedObjects method");
+		lg2::error("Fail to call GetManagedObjects method");
 
 		sd_bus_unref(bus);
 		return false;
@@ -194,7 +194,7 @@ static bool getRawFruData(uint16_t busIdx, uint8_t addr,
 			mapperReply.read(fruData);
 			retVal = true;
 		} catch (sdbusplus::exception_t &e) {
-			log<level::ERR>(
+			lg2::error(
 				"Fail to read Raw FRU data from system bus\n");
 		}
 	}
@@ -428,8 +428,7 @@ static bool writeFruData(uint16_t busIdx, uint8_t addr,
 			auto mapperReply = dbus.call(MapperCall);
 			retVal = true;
 		} catch (sdbusplus::exception_t &e) {
-			log<level::ERR>(
-				"Fail to Write FRU data via system bus\n");
+			lg2::error("Fail to Write FRU data via system bus\n");
 		}
 	}
 
@@ -474,8 +473,7 @@ static void parsePowerLimitCfg()
 	std::ifstream cfgFile(pwrLimitCfgFile);
 
 	if (!cfgFile.is_open()) {
-		log<level::INFO>(
-			"Can not open the Power Limit configuration file");
+		lg2::info("Can not open the Power Limit configuration file");
 		return;
 	}
 
@@ -483,8 +481,7 @@ static void parsePowerLimitCfg()
 		powerLimitJsonData =
 			nlohmann::json::parse(cfgFile, nullptr, false);
 	} catch (const nlohmann::json::parse_error &e) {
-		log<level::ERR>(
-			"Can not parse the Power Limit configuration file");
+		lg2::error("Can not parse the Power Limit configuration file");
 	}
 }
 
@@ -504,18 +501,18 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
 		cmd = "systemctl status systemd-timesyncd.service | grep inactive";
 		cmdOutput = exec(cmd.c_str());
 		if (cmdOutput.empty()) {
-			log<level::INFO>(
+			lg2::info(
 				"Can not set system time while the mode is NTP");
 			return ipmi::responseSuccess();
 		} else {
 			/* Sync time from RTC to BMC using hwclock */
 			ret = system("hwclock --hctosys");
 			if (ret == -1) {
-				log<level::ERR>("Can not set system time");
+				lg2::error("Can not set system time");
 			}
 		}
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseSuccess();
 	}
 
@@ -540,7 +537,7 @@ ipmi::RspType<> ipmiDocmdConfigureUartSwitch(uint8_t consPort, uint8_t dirSw)
 		      nDirSw;
 		ret = std::system(cmd.c_str());
 		if (ret == -1) {
-			log<level::ERR>("Can not config UART switch");
+			lg2::error("Can not config UART switch");
 		}
 	} catch (const std::exception &e) {
 		return responseFailure();
@@ -568,7 +565,7 @@ std::optional<std::uint16_t> scpReadRegisterMap(std::string path,
 		file.read((char *)(&addrInt), 2);
 		file.close();
 	} catch (const std::exception &e) {
-		log<level::ERR>("Can not read register map");
+		lg2::error("Can not read register map");
 		return std::nullopt;
 	}
 
@@ -594,7 +591,7 @@ static bool scpWriteRegisterMap(std::string path, uint8_t offsetW,
 		file.close();
 
 	} catch (const std::exception &e) {
-		log<level::ERR>("Can not write register map");
+		lg2::error("Can not write register map");
 		return false;
 	}
 
@@ -652,7 +649,7 @@ ipmi::RspType<uint8_t> ipmiDocmdSetMacAddress(std::vector<uint8_t> macAddress)
 	uint8_t addrss = 0;
 
 	if (macAddress.size() != 6) {
-		log<level::ERR>("new MAC address is invalid");
+		lg2::error("new MAC address is invalid");
 		return responseFailure();
 	}
 
@@ -663,24 +660,24 @@ ipmi::RspType<uint8_t> ipmiDocmdSetMacAddress(std::vector<uint8_t> macAddress)
 #else
 	/* Calculate BUS and Address of FRU device that includes MAC address */
 	if (!getBaseBoardFRUAddr(busIdx, addrss)) {
-		log<level::ERR>(
+		lg2::error(
 			"Can not get the bus and address of baseboard FRU device");
 		return responseFailure();
 	}
 #endif
 
 	if (!getRawFruData(busIdx, addrss, fruData)) {
-		log<level::ERR>("Can not get raw FRU data");
+		lg2::error("Can not get raw FRU data");
 		return responseFailure();
 	}
 
 	if (!updateMACAddInFRU(fruData, macAddress)) {
-		log<level::ERR>("Can not update MAC address");
+		lg2::error("Can not update MAC address");
 		return responseFailure();
 	}
 
 	if (!writeFruData(busIdx, addrss, fruData)) {
-		log<level::ERR>("Can not Write FRU data");
+		lg2::error("Can not Write FRU data");
 		return responseFailure();
 	}
 
@@ -727,22 +724,22 @@ ipmi::RspType<uint8_t> ipmiGetFanControlStatus()
 	try {
 		/* Check ampere_fanctrl.sh script is exist */
 		if (checkFanCtrlScriptExist() == fileNotExists) {
-			log<level::ERR>(
+			lg2::error(
 				"Error: ampere_fanctrl.sh script is not exist");
 			return ipmi::responseUnspecifiedError();
 		}
 		/* Check status of the fan service */
 		if (getFanStatus() == responseEnabled) {
 			/* The status of the fan service is active */
-			log<level::INFO>("Fan speed control is enabled");
+			lg2::info("Fan speed control is enabled");
 			return ipmi::responseSuccess(responseEnabled);
 		} else {
 			/* The status of the fan service is inactive */
-			log<level::INFO>("Fan speed control is disabled");
+			lg2::info("Fan speed control is disabled");
 			return ipmi::responseSuccess(responseDisabled);
 		}
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseResponseError();
 	}
 
@@ -760,22 +757,21 @@ ipmi::RspType<uint8_t> ipmiSetFanControlStatus(uint8_t status)
 	try {
 		/* Check ampere_fanctrl.sh script is exist */
 		if (checkFanCtrlScriptExist() == fileNotExists) {
-			log<level::ERR>(
+			lg2::error(
 				"Error: ampere_fanctrl.sh script is not exist");
 			return ipmi::responseUnspecifiedError();
 		}
 
 		/* Enable/Disable the fan speed control */
-		log<level::INFO>("Enable/Disable Fan speed control service");
+		lg2::info("Enable/Disable Fan speed control service");
 		cmd = "ampere_fanctrl.sh setstatus " + std::to_string(status);
 		ret = std::system(cmd.c_str());
 		if (ret == -1) {
-			log<level::ERR>(
-				"Error: can not set fan control status");
+			lg2::error("Error: can not set fan control status");
 		}
 		return ipmi::responseSuccess(status);
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseResponseError();
 	}
 
@@ -796,13 +792,13 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
 	try {
 		/* Check the PWM duty cycle is valid */
 		if ((speed < 1) || (speed > 100)) {
-			log<level::ERR>("Error: Invalid PWM duty cycle");
+			lg2::error("Error: Invalid PWM duty cycle");
 			return ipmi::responseUnspecifiedError();
 		}
 
 		/* Check the Fan speed control status */
 		if (getFanStatus() == responseEnabled) {
-			log<level::ERR>(
+			lg2::error(
 				"Error: can not set Fan speed because thermal "
 				"control is not disabled");
 			return responseSetFanErrorThermalCtlNotDisabled();
@@ -810,7 +806,7 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
 
 		/* Check ampere_fanctrl.sh script is exist */
 		if (checkFanCtrlScriptExist() == fileNotExists) {
-			log<level::ERR>(
+			lg2::error(
 				"Error: ampere_fanctrl.sh script is not exist");
 			return ipmi::responseUnspecifiedError();
 		}
@@ -822,11 +818,11 @@ ipmi::RspType<uint8_t> ipmiSetFanSpeed(uint8_t fanNumber, uint8_t speed)
 		      speedStr;
 		setFanStt = system(cmd.c_str());
 		if (WEXITSTATUS(setFanStt) == 1) {
-			log<level::ERR>("Error: Invalid fan number");
+			lg2::error("Error: Invalid fan number");
 			return responseInvalidFanNumber();
 		}
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseUnspecifiedError();
 	}
 
@@ -872,8 +868,7 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 		if (updateStatus != FWUpdateStarted &&
 		    updateStatus != FWUpdateSuccess &&
 		    updateStatus != FWUpdateFailure) {
-			log<level::ERR>(
-				"Error: Invalid FW inband update status");
+			lg2::error("Error: Invalid FW inband update status");
 			return ipmi::responseCommandDisabled();
 		}
 
@@ -881,7 +876,7 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 		if (updateType != FWUpdateEntireHostFW &&
 		    updateType != FWUpdatePreserveRW &&
 		    updateType != FWUpdateClearRW) {
-			log<level::ERR>("Error: Invalid FW inband update type");
+			lg2::error("Error: Invalid FW inband update type");
 			return ipmi::responseCommandDisabled();
 		}
 
@@ -912,7 +907,7 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 					messageStr.c_str(), NULL);
 		}
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseCommandDisabled();
 	}
 
@@ -974,11 +969,10 @@ ipmi::RspType<uint8_t> ipmiSetHostFWRevision(ipmi::Context::ptr ctx,
 			hostFwFile << hostFWRevision;
 			hostFwFile.close();
 		} catch (const std::exception &e) {
-			log<level::ERR>(
-				"ipmiSetHostFWRevision: can't set property");
+			lg2::error("ipmiSetHostFWRevision: can't set property");
 		}
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseUnspecifiedError();
 	}
 
@@ -1024,9 +1018,8 @@ ipmi::RspType<uint8_t> ipmiTriggerHostFWCrashDump()
 	try {
 		/* Check ampere_pldm_effecter_trigger.sh script is exist */
 		if (checkPldmEffecterTriggerScriptExist() == fileNotExists) {
-			log<level::ERR>(
-				"Error: ampere_pldm_effecter_trigger.sh "
-				"script is not exist");
+			lg2::error("Error: ampere_pldm_effecter_trigger.sh "
+				   "script is not exist");
 			return ipmi::responseCommandDisabled();
 		}
 
@@ -1037,11 +1030,11 @@ ipmi::RspType<uint8_t> ipmiTriggerHostFWCrashDump()
 		cmd = pldmEffecterTriggerScript + " -s 0 BERTTrigger";
 		bertTriggerStt = system(cmd.c_str());
 		if (WEXITSTATUS(bertTriggerStt) == responseError) {
-			log<level::ERR>("Error: Can not Trigger BERT");
+			lg2::error("Error: Can not Trigger BERT");
 			return ipmi::responseUnspecifiedError();
 		}
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return ipmi::responseUnspecifiedError();
 	}
 
@@ -1108,7 +1101,7 @@ static ipmi::RspType<> setSoCPowerLimit([[maybe_unused]] ipmi::Context::ptr ctx,
 						flag = entity.at("requiredFlag")
 							       .get<bool>();
 					} catch (const std::exception &e) {
-						log<level::ERR>(
+						lg2::error(
 							"Can not parse power limit configuration data");
 						completeCode =
 							ipmi::ccUnspecifiedError;
@@ -1157,13 +1150,13 @@ static ipmi::RspType<> setSoCPowerLimit([[maybe_unused]] ipmi::Context::ptr ctx,
                          * a mandatory sensor then request will be stopped.
                          */
 						if (true == flag) {
-							log<level::ERR>(
+							lg2::error(
 								"Error: Can not set the power limit");
 							completeCode = ipmi::
 								ccCommandNotAvailable;
 							break;
 						} else {
-							log<level::INFO>(
+							lg2::info(
 								"Infor: Can not set the power limit");
 							continue;
 						}
@@ -1250,13 +1243,13 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
                          */
 						if (ec) {
 							if (true == flag) {
-								log<level::ERR>(
+								lg2::error(
 									"Error: Can not get the power limit");
 								completeCode =
 									ipmi::ccCommandNotAvailable;
 								break;
 							} else {
-								log<level::INFO>(
+								lg2::info(
 									"Infor: Can not get the power limit");
 								continue;
 							}
@@ -1278,7 +1271,7 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
 					}
 				} catch (const std::exception &e) {
 					completeCode = ipmi::ccUnspecifiedError;
-					log<level::ERR>(
+					lg2::error(
 						"Can not parse power limit configuration data");
 				}
 			}
@@ -1361,7 +1354,7 @@ static ipmi::RspType<> setDRAMMaxThrottleEnable(ipmi::Context::ptr ctx,
 						flag = entity.at("requiredFlag")
 							       .get<bool>();
 					} catch (const std::exception &e) {
-						log<level::ERR>(
+						lg2::error(
 							"Can not parse Json configuration data");
 						completeCode =
 							ipmi::ccUnspecifiedError;
@@ -1382,13 +1375,13 @@ static ipmi::RspType<> setDRAMMaxThrottleEnable(ipmi::Context::ptr ctx,
                      */
 					if (ec) {
 						if (true == flag) {
-							log<level::ERR>(
+							lg2::error(
 								"Error: Can not set DRAM Max Throttle Enable");
 							completeCode = ipmi::
 								ccCommandNotAvailable;
 							break;
 						} else {
-							log<level::INFO>(
+							lg2::info(
 								"Info: Can not set DRAM Max Throttle Enable");
 							continue;
 						}
@@ -1463,7 +1456,7 @@ static ipmi::RspType<uint8_t> getDRAMMaxThrottleEnable(ipmi::Context::ptr ctx)
 						flag = entity.at("requiredFlag")
 							       .get<bool>();
 					} catch (const std::exception &e) {
-						log<level::ERR>(
+						lg2::error(
 							"Can not parse Json configuration data");
 						completeCode =
 							ipmi::ccUnspecifiedError;
@@ -1485,13 +1478,13 @@ static ipmi::RspType<uint8_t> getDRAMMaxThrottleEnable(ipmi::Context::ptr ctx)
                      */
 					if (ec) {
 						if (true == flag) {
-							log<level::ERR>(
+							lg2::error(
 								"Error: Can not get DRAM Max Throttle Enable");
 							completeCode = ipmi::
 								ccCommandNotAvailable;
 							break;
 						} else {
-							log<level::INFO>(
+							lg2::info(
 								"Info: Can not get DRAM Max Throttle Enable");
 							continue;
 						}
@@ -1541,8 +1534,8 @@ ipmi::RspType<> ipmiSetScandumpMode(uint8_t mode)
 
 	/* Check ampere_scandump_mode.sh script is exist */
 	if (checkScandumpModeScriptExist() == fileNotExists) {
-		log<level::ERR>("Error: ampere_scandump_mode.sh "
-				"script does not exist");
+		lg2::error("Error: ampere_scandump_mode.sh "
+			   "script does not exist");
 		return ipmi::response(ipmi::ccCommandDisabled);
 	}
 
@@ -1551,13 +1544,13 @@ ipmi::RspType<> ipmiSetScandumpMode(uint8_t mode)
 	} else if (mode == scandump::mode::disable) {
 		cmd = scandump::script + " disable";
 	} else {
-		log<level::ERR>("Error: Invalid mode");
+		lg2::error("Error: Invalid mode");
 		return ipmi::response(ipmi::ccUnspecifiedError);
 	}
 
 	/* Call ampere_scandump_mode.sh script to trigger scandump mode */
 	if (system(cmd.c_str()) == -1) {
-		log<level::ERR>("Can not set scandump mode");
+		lg2::error("Can not set scandump mode");
 		return ipmi::response(ipmi::ccUnspecifiedError);
 	}
 
@@ -1578,8 +1571,8 @@ ipmi::RspType<uint8_t> ipmiGetScandumpMode()
 
 	/* Check ampere_scandump_mode.sh script is exist */
 	if (checkScandumpModeScriptExist() == fileNotExists) {
-		log<level::ERR>("Error: ampere_scandump_mode.sh "
-				"script does not exist");
+		lg2::error("Error: ampere_scandump_mode.sh "
+			   "script does not exist");
 		return ipmi::response(ipmi::ccCommandDisabled);
 	}
 
@@ -1587,7 +1580,7 @@ ipmi::RspType<uint8_t> ipmiGetScandumpMode()
 	/* Call ampere_scandump_mode.sh script to get scandump mode status */
 	scandumpStt = system(cmd.c_str());
 	if (scandumpStt == -1) {
-		log<level::ERR>("Can not get scandump mode");
+		lg2::error("Can not get scandump mode");
 		return ipmi::response(ipmi::ccUnspecifiedError);
 	}
 	if (WEXITSTATUS(scandumpStt) == scandump::mode::enable) {
@@ -1617,25 +1610,25 @@ ipmi::RspType<uint8_t> ipmiSetExtVref(uint8_t upper, uint8_t lower)
 	int stt;
 
 	/* Check extVrefScript script is exist */
-	if (access(extVref::script.c_str(), F_OK|X_OK)) {
-		log<level::ERR>(
-			"Error: Command not supported on current platform");
+	if (access(extVref::script.c_str(), F_OK | X_OK)) {
+		lg2::error("Error: Command not supported on current platform");
 		return ipmi::responseInvalidCommand();
 	}
 
 	cmd = extVref::script + " " + extVrefStr;
 	stt = system(cmd.c_str());
 	if (WEXITSTATUS(stt) == extVref::errorCodes::cmdNotSupported) {
-		log<level::ERR>("Error: Command not supported on current platform");
+		lg2::error("Error: Command not supported on current platform");
 		return ipmi::responseInvalidCommand();
 	} else if (WEXITSTATUS(stt) == extVref::errorCodes::invalidVref) {
-		log<level::ERR>("Error: Invalid data field in request");
+		lg2::error("Error: Invalid data field in request");
 		return ipmi::responseInvalidFieldRequest();
 	} else if (WEXITSTATUS(stt) == extVref::errorCodes::cmdInvalid4HostOn) {
-		log<level::ERR>("Error: Command not available while chassis power is on");
+		lg2::error(
+			"Error: Command not available while chassis power is on");
 		return ipmi::responseCommandNotAvailable();
 	} else if (WEXITSTATUS(stt) == responseError) {
-		log<level::ERR>("Error: Unspecified");
+		lg2::error("Error: Unspecified");
 		return ipmi::responseUnspecifiedError();
 	} else {
 		return ipmi::responseSuccess(responseEnabled);

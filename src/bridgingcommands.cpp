@@ -17,7 +17,7 @@
 #include <bridgingcommands.hpp>
 #include <ipmid/api.hpp>
 #include <ipmid/utils.hpp>
-#include <phosphor-logging/log.hpp>
+#include <phosphor-logging/lg2.hpp>
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/bus/match.hpp>
 #include <sdbusplus/message.hpp>
@@ -78,14 +78,14 @@ ipmi::RspType<> ipmiAppClearMessageFlags(ipmi::Context::ptr ctx,
 	try {
 		getChannelInfo(ctx->channel, chInfo);
 	} catch (sdbusplus::exception_t &e) {
-		phosphor::logging::log<phosphor::logging::level::ERR>(
-			"ipmiAppClearMessageFlags: Failed to get Channel Info",
-			phosphor::logging::entry("MSG: %s", e.description()));
+		lg2::error(
+			"ipmiAppClearMessageFlags: Failed to get Channel Info MSG: {ERROR}",
+			"ERROR", e);
 		return ipmi::responseUnspecifiedError();
 	}
 	if (chInfo.mediumType !=
 	    static_cast<uint8_t>(ipmi::EChannelMediumType::smbusV20)) {
-		phosphor::logging::log<phosphor::logging::level::ERR>(
+		lg2::error(
 			"ipmiAppClearMessageFlags: Error - supported only in SSIF "
 			"interface");
 		return ipmi::responseCommandNotAvailable();

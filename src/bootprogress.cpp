@@ -19,7 +19,7 @@
 #include <ipmid/api.hpp>
 #include <ipmid/types.hpp>
 #include <ipmid/utils.hpp>
-#include <phosphor-logging/log.hpp>
+#include <phosphor-logging/lg2.hpp>
 #include <sdbusplus/bus.hpp>
 #include <sdbusplus/message.hpp>
 #include <sdbusplus/asio/object_server.hpp>
@@ -63,9 +63,9 @@ void setProperty(sdbusplus::bus::bus &bus, const std::string &busName,
 		methodCall.append(interface, property, variantValue);
 		auto reply = bus.call(methodCall);
 	} catch (const std::exception &e) {
-		log<level::ERR>("Set properties fail.",
-				entry("ERROR = %s", e.what()),
-				entry("Object path = %s", objPath.c_str()));
+		lg2::error(
+			"Set properties fail. {ERROR} Object path = {OBJPATH}",
+			"ERROR", e, "OBJPATH", objPath);
 		return;
 	}
 }
@@ -87,7 +87,7 @@ void setProgressPostCode(uint64_t state1st, uint8_t state2nd)
 		std::string inf = "xyz.openbmc_project.State.Boot.Raw";
 		setProperty(*bus, service, object, inf, "Value", pcData);
 	} catch (const std::exception &e) {
-		log<level::ERR>("setProgressPostCode: can't set property");
+		lg2::error("setProgressPostCode: can't set property");
 	}
 }
 
@@ -100,7 +100,7 @@ uint64_t getCurrentTime()
 			*bus, timeMngservice, timeObject, timeInf, "Elapsed");
 		t = std::get<uint64_t>(variant);
 	} catch (const std::exception &e) {
-		log<level::ERR>("getCurrentTime: can't get property");
+		lg2::error("getCurrentTime: can't get property");
 	}
 
 	return t;
@@ -120,8 +120,7 @@ void updateProgressLaststateDbus(std::string s)
 		ipmi::setDbusProperty(*bus, bpService, bpObject, bpInf,
 				      "BootProgress", bpValue);
 	} catch (const std::exception &e) {
-		log<level::ERR>(
-			"updateProgressLaststateDbus: can't set property");
+		lg2::error("updateProgressLaststateDbus: can't set property");
 	}
 }
 
@@ -136,7 +135,7 @@ void updateProgressLastStateTimeDbus(uint64_t t)
 		ipmi::setDbusProperty(*bus, bpService, bpObject, bpInf,
 				      "BootProgressLastUpdate", t);
 	} catch (const std::exception &e) {
-		log<level::ERR>(
+		lg2::info(
 			"updateProgressLastStateTimeDbus: can't set property");
 	}
 }
@@ -360,7 +359,7 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 			bpdataIn = ((bpdataIn << 8) + i);
 		setProgressPostCode(bpdataIn, instance);
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return responseParmNotSupported();
 	}
 
@@ -401,7 +400,7 @@ ipmiGetBootProgressCode(ipmi::Context::ptr ctx)
 		/* Read boot progress data record from the file system */
 		std::ifstream bpf(bootProgressFs.c_str());
 		if (bpf.fail()) {
-			log<level::ERR>("Failed to open file");
+			lg2::error("Failed to open file");
 			return responseParmNotSupported();
 		}
 
@@ -412,7 +411,7 @@ ipmiGetBootProgressCode(ipmi::Context::ptr ctx)
 		}
 		bpf.close();
 	} catch (const std::exception &e) {
-		log<level::ERR>(e.what());
+		lg2::error("{ERROR}", "ERROR", e);
 		return responseParmNotSupported();
 	}
 
