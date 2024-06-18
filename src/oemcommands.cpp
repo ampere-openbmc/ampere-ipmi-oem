@@ -125,7 +125,7 @@ static inline auto responseSetFanErrorThermalCtlNotDisabled()
 
 	/*
      * Scan all FRU objects to find out baseboard FRU device.
-     * The basedboard FRU device is indecate by chassis type
+     * The basedboard FRU device is indicated by chassis type
      * is Rack Mount - "23"
      */
 	for (const auto &fruObj : fruObjects) {
@@ -261,7 +261,7 @@ static bool updateMACAddInFRU(std::vector<uint8_t> &fruData,
                 * MAC address in Board Extra 1 is invalid:
                 * Add MAC address and transit the data from the new shift offset
                 * which is the byte next to the end of the board extra fields
-                * (padding fields are not included); The invalid field will be overriden;
+                * (padding fields are not included); The invalid field will be overridden;
                 */
 				shiftOffset += boardExtraOneFieldLength + 1;
 				shiftFlag = true;
@@ -1069,7 +1069,7 @@ static ipmi::RspType<> setSoCPowerLimit([[maybe_unused]] ipmi::Context::ptr ctx,
      */
 	if (!powerLimitJsonData.is_discarded()) {
 		/*
-         * Depend on the platform, geting SoC power limit can be implemented by
+         * Depend on the platform, getting SoC power limit can be implemented by
          * different solutions such as PLDM, SCP ...
          * This function should be updated when new solution is provided.
          */
@@ -1086,7 +1086,7 @@ static ipmi::RspType<> setSoCPowerLimit([[maybe_unused]] ipmi::Context::ptr ctx,
 
 			if (pldmSensors.is_array()) {
 				/*
-                    * Each PLDM sensor has 2 properties: 
+                    * Each PLDM sensor has 2 properties:
                     *     - objectPath: D-bus object path
                     *     - requiredFlag: this sensor is mandatory or not
                     */
@@ -1157,7 +1157,7 @@ static ipmi::RspType<> setSoCPowerLimit([[maybe_unused]] ipmi::Context::ptr ctx,
 							break;
 						} else {
 							lg2::info(
-								"Infor: Can not set the power limit");
+								"Info: Can not set the power limit");
 							continue;
 						}
 					}
@@ -1199,7 +1199,7 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
      */
 	if (!powerLimitJsonData.is_discarded()) {
 		/*
-         * Depend on the platform, geting SoC power limit can be implemented by
+         * Depend on the platform, getting SoC power limit can be implemented by
          * different solutions such as PLDM, SCP ...
          * This function should be updated when new solution is provided.
          */
@@ -1216,7 +1216,7 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
 			if (pldmSensors.is_array()) {
 				try {
 					/*
-                     * Each PLDM sensor has 2 properties: 
+                     * Each PLDM sensor has 2 properties:
                      *     - objectPath: D-bus object path
                      *     - requiredFlag: this sensor is mandatory or not
                      */
@@ -1250,7 +1250,7 @@ static ipmi::RspType<uint8_t, uint8_t> getSoCPowerLimit(ipmi::Context::ptr ctx)
 								break;
 							} else {
 								lg2::info(
-									"Infor: Can not get the power limit");
+									"Info: Can not get the power limit");
 								continue;
 							}
 						}
@@ -1323,7 +1323,7 @@ static ipmi::RspType<> setDRAMMaxThrottleEnable(ipmi::Context::ptr ctx,
      */
 	if (!powerLimitJsonData.is_discarded()) {
 		/*
-         * Depend on the platform, seting DRAM Max Throttle Enable can be
+         * Depend on the platform, setting DRAM Max Throttle Enable can be
          * implemented by different solutions such as PLDM, SCP ...
          * This function could be updated when new method is provided.
          */
@@ -1402,7 +1402,7 @@ static ipmi::RspType<> setDRAMMaxThrottleEnable(ipmi::Context::ptr ctx,
 }
 
 /**
- *  @brief Implement get DRAM Max Throttle Enbale command
+ *  @brief Implement get DRAM Max Throttle Enable command
  *
  *  @return IPMI completion code plus response data
  *      - Competetion code:
@@ -1425,7 +1425,7 @@ static ipmi::RspType<uint8_t> getDRAMMaxThrottleEnable(ipmi::Context::ptr ctx)
      */
 	if (!powerLimitJsonData.is_discarded()) {
 		/*
-         * Depend on the platform, Geting DRAM Max Throttle Enable can be
+         * Depend on the platform, Getting DRAM Max Throttle Enable can be
          * implemented by different solutions such as PLDM, SCP ...
          * This function could be updated when new method is provided.
          */

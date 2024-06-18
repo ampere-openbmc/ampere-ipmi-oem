@@ -205,7 +205,7 @@ void storeBootProgressFile(uint8_t codeType, uint8_t reserved1st,
 	bpf.close();
 }
 
-/** @brief implementes the set boot progress command
+/** @brief implements the set boot progress command
  *  @param[in] ctx - shared_ptr to an IPMI context struct
  *  @param[in] - 9 bytes of the boot progress code record
  *  @returns ipmi completion code.
@@ -366,7 +366,7 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 	return ipmi::responseSuccess();
 }
 
-/** @brief implementes the get boot progress command
+/** @brief implements the get boot progress command
  *  @param[in] ctx - shared_ptr to an IPMI context struct
  *  @param[out] - 9 bytes of the boot progress code record
  *  @returns ipmi completion code.

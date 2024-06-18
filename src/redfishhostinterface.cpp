@@ -42,7 +42,7 @@ static inline auto responseCertNumberInvalid()
 	return response(certificateNumberInvalid);
 }
 
-/** @brief implementes the get random password
+/** @brief implements the get random password
  *  @param[in] len - length of password.
  *  @returns password
  */
@@ -68,7 +68,7 @@ std::string getRandomPassword(int len)
 	return ret;
 }
 
-/** @brief implementes the get the length of password
+/** @brief implements the get the length of password
  *  @param[in] none
  *  @returns the length of the password
  */
@@ -76,12 +76,12 @@ uint8_t getPasswordLen()
 {
 	std::random_device rd;
 	std::mt19937 gen(rd());
-	/* Password lenth between 9 to 16 characters long */
+	/* Password length between 9 to 16 characters long */
 	std::uniform_int_distribution<> distr(minPasswordSize, maxPasswordSize);
 	return distr(gen);
 }
 
-/** @brief implementes the get CredentialBootstrapping's Enabled property
+/** @brief implements the get CredentialBootstrapping's Enabled property
  *  @param[in] none
  *  @returns 1 - enabled, 0 - disabled
  */
@@ -101,7 +101,7 @@ bool getCredentialBootstrapEnabledProperty()
 	return ret;
 }
 
-/** @brief implementes the set CredentialBootstrapping's Enabled property
+/** @brief implements the set CredentialBootstrapping's Enabled property
  *  @param[in] true - enabled, false - disabled
  *  @returns none
  */
@@ -117,7 +117,7 @@ void setCredentialBootstrapEnabledProperty(bool pValue)
 	}
 }
 
-/** @brief implementes the get redfish host authentication command
+/** @brief implements the get redfish host authentication command
  *  @param[in] ctx - shared_ptr to an IPMI context struct
  *  @param[in] bootstrapControl - Disable credential bootstrapping control
  *  @returns ipmi completion code.
@@ -211,7 +211,7 @@ ipmiOemAmpereCreBootstrap(ipmi::Context::ptr ctx, uint8_t bootstrapControl)
 	return ipmi::responseSuccess(dataOut);
 }
 
-/** @brief implementes the get manager certificate fingerprint command
+/** @brief implements the get manager certificate fingerprint command
  *  @param[in] ctx - shared_ptr to an IPMI context struct
  *  @param[in] certNum - Certificate number
  *  @returns ipmi completion code.
