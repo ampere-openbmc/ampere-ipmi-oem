@@ -130,11 +130,11 @@ ipmiOemAmpereCreBootstrap(ipmi::Context::ptr ctx, uint8_t bootstrapControl)
 	std::string password;
 	uint8_t passwordLen;
 	char buffer[bootstrapAccLen] = {};
-	uint8_t userId;
+	uint8_t userId = 1;
 	ipmi::PrivAccess privAccess = {};
 	ipmi::UsersTbl *userData;
 	std::vector<uint8_t> dataOut;
-	uint8_t userCnt;
+	uint8_t userCnt = 0;
 
 	try {
 		getChannelInfo(ctx->channel, chInfo);

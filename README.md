@@ -6,24 +6,24 @@ Ampere Computing® ARM 64-bit multi-core processors.
 
 Below table shows supported IPMI OEM commands
 
-| Command name                          | NetFn |  Cmd  |
-| ------------------------------------- | :---: | :---: |
-| Set BMC MAC address                   | 0x3c  | 0x01  |
-| Get Fan Speed Control Override Status | 0x3c  | 0x02  |
-| Set Fan Speed Control Override        | 0x3c  | 0x03  |
-| Set FAN Speed                         | 0x3c  | 0x04  |
-| Set SoC Power Limit                   | 0x3c  | 0x11  |
-| Get SoC Power Limit                   | 0x3c  | 0x12  |
-| Trigger Host Firmware Crash Dump      | 0x3c  | 0x15  |
-| Get SCP Register Value                | 0x3c  | 0x17  |
-| Get SCP Register Value                | 0x3c  | 0x18  |
-| Set DRAM Max Throttle Enable          | 0x3c  | 0x1e  |
-| Get DRAM Max Throttle Enable          | 0x3c  | 0x1f  |
-| Set Scan Dump Mode                    | 0x3c  | 0x25  |
-| Get Scan Dump Mode                    | 0x3c  | 0x26  |
-| Set Host Firmware Revision            | 0x3c  | 0xf0  |
-| Set Firmware in-band update status    | 0x3c  | 0xf6  |
-| Time Change Notification              | 0x3c  | 0xf9  |
+| Command name                          | NetFn | Cmd  |
+| ------------------------------------- | :---: | :--: |
+| Set BMC MAC address                   | 0x3c  | 0x01 |
+| Get Fan Speed Control Override Status | 0x3c  | 0x02 |
+| Set Fan Speed Control Override        | 0x3c  | 0x03 |
+| Set FAN Speed                         | 0x3c  | 0x04 |
+| Set SoC Power Limit                   | 0x3c  | 0x11 |
+| Get SoC Power Limit                   | 0x3c  | 0x12 |
+| Trigger Host Firmware Crash Dump      | 0x3c  | 0x15 |
+| Get SCP Register Value                | 0x3c  | 0x17 |
+| Get SCP Register Value                | 0x3c  | 0x18 |
+| Set DRAM Max Throttle Enable          | 0x3c  | 0x1e |
+| Get DRAM Max Throttle Enable          | 0x3c  | 0x1f |
+| Set Scan Dump Mode                    | 0x3c  | 0x25 |
+| Get Scan Dump Mode                    | 0x3c  | 0x26 |
+| Set Host Firmware Revision            | 0x3c  | 0xf0 |
+| Set Firmware in-band update status    | 0x3c  | 0xf6 |
+| Time Change Notification              | 0x3c  | 0xf9 |
 
 ## Set BMC MAC Address (0x3c 0x01)
 

@@ -222,7 +222,7 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 	std::string bpRecordStr;
 	std::string message;
 	uint64_t lastStateTime = 0;
-	uint64_t bpdataIn;
+	uint64_t bpdataIn = 0;
 	std::vector<uint8_t> tmp;
 
 	try {
@@ -306,8 +306,8 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 				"Boot progress code: " + bpRecordStr;
 			stream << bpRecordEventLogStr << std::endl;
 			message = stream.str();
-			sd_journal_send( "MESSAGE=%s",
-					message.c_str(), "PRIORITY=%i", LOG_INFO, NULL);
+			sd_journal_send("MESSAGE=%s", message.c_str(),
+					"PRIORITY=%i", LOG_INFO, NULL);
 		}
 
 		/* Adding to d-bus for support Redfish report
