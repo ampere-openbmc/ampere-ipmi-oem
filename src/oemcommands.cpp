@@ -638,6 +638,90 @@ ipmi::RspType<> ipmiDocmdScpWriteRegisterMap(uint8_t cpuIndex, uint8_t offsetW,
 	return ipmi::responseSuccess();
 }
 
+/**
+ *  @brief implements function to update MAC Address to network configure
+ */
+static nlohmann::json networkCfgStr;
+static bool updateMacAddrToNetworkCfg(std::vector<uint8_t> macAddress)
+{
+	std::string line;
+	char results[18];
+	bool found = false;
+	std::string ethInfStr;
+	std::string fileContent;
+	std::string updatedContent;
+
+	/* Convert MAC Address to String */
+	sprintf(results, "%02x:%02x:%02x:%02x:%02x:%02x", macAddress[0],
+		macAddress[1], macAddress[2], macAddress[3], macAddress[4],
+		macAddress[5]);
+	std::string newMacAddr(results);
+
+	std::vector<std::pair<std::string, std::string> > macSetEnv = {
+		{ "eth0", "fw_setenv ethaddr " + newMacAddr },
+		{ "eth1", "fw_setenv eth1addr " + newMacAddr }
+	};
+
+	/* Get the Network Interface ethX from json config file */
+	std::string filePath = "/usr/share/network/config.json";
+	std::ifstream jsonCfgFile(filePath);
+	if (!jsonCfgFile.is_open()) {
+		lg2::error("{FILEPATH} file doesn't exist or unable to open",
+			   "FILEPATH", filePath);
+		return false;
+	}
+
+	nlohmann::json jsonData;
+	jsonCfgFile >> jsonData;
+	jsonCfgFile.close();
+	for (const auto &item : jsonData.items()) {
+		ethInfStr = item.key();
+		break;
+	}
+
+	/* Update MAC Address for Uboot Enviroment */
+	for (const auto &pair : macSetEnv) {
+		if (pair.first == ethInfStr) {
+			int setMacEnv = system(pair.second.c_str());
+			if (setMacEnv != 0) {
+				lg2::error(
+					"Failed to set u-boot variable for {ETHINF}",
+					"ETHINF", ethInfStr);
+				return false;
+			}
+			break;
+		}
+	}
+
+	/* Update MAC Address for Network Configure */
+	filePath = "/etc/systemd/network/00-bmc-" + ethInfStr + ".network";
+	std::ifstream netCfgFile(filePath);
+	if (!netCfgFile.is_open()) {
+		lg2::error("{FILEPATH} file doesn't exist or unable to open",
+			   "FILEPATH", filePath);
+		return false;
+	}
+
+	fileContent = std::string((std::istreambuf_iterator<char>(netCfgFile)),
+				  std::istreambuf_iterator<char>());
+	netCfgFile.close();
+	std::istringstream stream(fileContent);
+	while (std::getline(stream, line)) {
+		if (line.find("MACAddress=") != std::string::npos) {
+			line = "MACAddress=" + newMacAddr;
+			found = true;
+		}
+		updatedContent += line + "\n";
+	}
+	if (found) {
+		std::ofstream file(filePath);
+		file << updatedContent;
+		file.close();
+	}
+
+	return true;
+}
+
 /** @brief implements ipmi oem command edit MAC address
  *  @param - new macAddress
  *  @returns - Fail or Success.
@@ -680,6 +764,9 @@ ipmi::RspType<uint8_t> ipmiDocmdSetMacAddress(std::vector<uint8_t> macAddress)
 		lg2::error("Can not Write FRU data");
 		return responseFailure();
 	}
+
+	/* Update New MAC Address To Network Configure */
+	updateMacAddrToNetworkCfg(macAddress);
 
 	return ipmi::responseSuccess(macAddress.size());
 }
