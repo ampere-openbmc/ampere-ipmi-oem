@@ -975,7 +975,7 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 				"Firmware In-band Update Status: " +
 				FWUpdateStatusStr[updateStatus] + " with " +
 				FWUpdateTypeStr[updateType];
-			std::string redfishMsgId("OpenBMC.0.1.AmpereEvent.OK");
+			std::string redfishMsgId("OpenBMC.0.1.AmpereEvent");
 			sd_journal_send("REDFISH_MESSAGE_ID=%s",
 					redfishMsgId.c_str(),
 					"REDFISH_MESSAGE_ARGS=%s",
@@ -985,8 +985,7 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 			std::string messageStr =
 				FWUpdateStatusStr[updateStatus] + " with " +
 				FWUpdateTypeStr[updateType];
-			std::string redfishMsgId(
-				"OpenBMC.0.1.AmpereWarning.Warning");
+			std::string redfishMsgId("OpenBMC.0.1.AmpereWarning");
 			sd_journal_send("REDFISH_MESSAGE_ID=%s",
 					redfishMsgId.c_str(),
 					"REDFISH_MESSAGE_ARGS=%s,%s",
