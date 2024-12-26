@@ -48,7 +48,7 @@ std::string FWUpdateTypeStr[3] = {
 	"RO regions (clear RW regions)",
 };
 /* For Host Firmware Revision */
-std::string hostFWService = "xyz.openbmc_project.Software.BMC.Updater";
+std::string hostFWService = "xyz.openbmc_project.Software.Manager";
 std::string hostFWObject = "/xyz/openbmc_project/software/bios_active";
 std::string hostFWInf = "xyz.openbmc_project.Software.Version";
 std::string hostFwRevisionFs = "/var/lib/host_fw_revision";
