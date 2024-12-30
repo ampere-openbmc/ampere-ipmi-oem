@@ -30,6 +30,7 @@
 #include <string>
 
 using namespace phosphor::logging;
+using postcode_t = std::tuple<std::vector<uint8_t>, std::vector<uint8_t> >;
 
 static inline auto response(uint8_t cc)
 {
@@ -52,9 +53,9 @@ static inline auto responseParmNotSupported()
  */
 void setProperty(sdbusplus::bus::bus &bus, const std::string &busName,
 		 const std::string &objPath, const std::string &interface,
-		 const std::string &property, const postcodeData &value)
+		 const std::string &property, const postcode_t &value)
 {
-	std::variant<postcodeData> variantValue = value;
+	std::variant<postcode_t> variantValue = value;
 	try {
 		auto methodCall =
 			bus.new_method_call(busName.c_str(), objPath.c_str(),
@@ -77,17 +78,19 @@ void setProperty(sdbusplus::bus::bus &bus, const std::string &busName,
  *  openbmc_project/State/Boot/Raw.interface.yaml#L6
  *  @param[out] - none
  */
-void setProgressPostCode(uint64_t state1st, uint8_t state2nd)
+void setProgressPostCode(const std::vector<uint8_t> &primaryPostCode,
+			 const std::vector<uint8_t> &secondaryPostCode)
 {
-	postcodeData pcData{ state1st, { state2nd } };
+	postcode_t postCode(primaryPostCode, secondaryPostCode);
 	auto bus = getSdBus();
 	try {
 		std::string service = "xyz.openbmc_project.State.Boot.Raw";
 		std::string object = "/xyz/openbmc_project/state/boot/raw0";
-		std::string inf = "xyz.openbmc_project.State.Boot.Raw";
-		setProperty(*bus, service, object, inf, "Value", pcData);
+		std::string interface = "xyz.openbmc_project.State.Boot.Raw";
+		setProperty(*bus, service, object, interface, "Value",
+			    postCode);
 	} catch (const std::exception &e) {
-		lg2::error("setProgressPostCode: can't set property");
+		lg2::error("setProgressPostCode: Can't set property");
 	}
 }
 
@@ -222,8 +225,6 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 	std::string bpRecordStr;
 	std::string message;
 	uint64_t lastStateTime = 0;
-	uint64_t bpdataIn = 0;
-	std::vector<uint8_t> tmp;
 
 	try {
 		getChannelInfo(ctx->channel, chInfo);
@@ -348,16 +349,16 @@ ipmiSendBootProgressCode(ipmi::Context::ptr ctx, uint8_t codeType,
 		/* The OemLastState will updated to the PostCodes Boot.Raw:
          * https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/
          * xyz/openbmc_project/State/Boot/Raw.interface.yaml#L6
-         * The type of the Boot.Raw value is struct[uint64,array[byte]]
+         * The type of the Boot.Raw value is struct[array[byte],array[byte]]
          * Update the BootProgress code to the Boot.Raw value:
-         *  - First 8 bytes to the first element of the Boot.Raw value
-         *  - The last one bytes to the last element of the Boot.Raw value
+         *  - All 9 bytes to the first element of the Boot.Raw value
+         *  - Empty to the last element of the Boot.Raw value
          */
-		tmp = { codeType,     reserved1st,  reserved2nd, severity,
-			operation1st, operation2nd, subClass,	 codeClass };
-		for (auto i : tmp)
-			bpdataIn = ((bpdataIn << 8) + i);
-		setProgressPostCode(bpdataIn, instance);
+		std::vector<uint8_t> data;
+		data = { codeType, reserved1st,	 reserved2nd,
+			 severity, operation1st, operation2nd,
+			 subClass, codeClass,	 instance };
+		setProgressPostCode(data, {});
 	} catch (const std::exception &e) {
 		lg2::error("{ERROR}", "ERROR", e);
 		return responseParmNotSupported();

@@ -30,8 +30,6 @@ using namespace phosphor::logging;
 #define BASE	   16
 #define ERROR_CODE 0x02
 
-using postcodeData = std::tuple<uint64_t, std::vector<uint8_t> >;
-
 std::string hostProcessorEC[14] = {
 	"Invalid type",
 	"Invalid speed",
