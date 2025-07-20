@@ -65,7 +65,6 @@ zampoemcmds_lib = library(
     'src/bootprogress.cpp',
     'src/bridgingcommands.cpp',
     'src/oemcommands.cpp',
-    'src/redfishhostinterface.cpp',
     implicit_include_directories: false,
     dependencies: zampoemcmds_pre,
     version: meson.project_version(),
