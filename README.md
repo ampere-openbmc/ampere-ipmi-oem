@@ -55,8 +55,9 @@ Response
 
 Example: write new MAC Address `70:E2:84:8F:E3:56`
 
-```
+```text
 $ ipmitool raw 0x3c 0x01 0x70 0xE2 0x84 0x8F 0xE3 0x56
+06
 ```
 
 Note: The Ampere-formatted FRU defines a Custom Board Info Field of 17 bytes
@@ -200,7 +201,7 @@ Response
 
 Example: Read the SCP register offset 0x53
 
-```
+```text
 $ ipmitool raw 0x3c 0x17 0x00 0x53
 ef 01
 ```
@@ -228,8 +229,9 @@ Response
 
 Example: Write 0x01EF to SCP register offset 0x53
 
-```
+```text
 $ ipmitool raw 0x3c 0x18 0x00 0x53 0xEF 0x01
+00
 ```
 
 ## Set DRAM Max Throttle Enable (0x3c 0x1e)

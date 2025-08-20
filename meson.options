@@ -1,2 +1,2 @@
-option('mac-address-fru-bus', type : 'integer', value : 0)
-option('mac-address-fru-addr', type : 'integer', value : 0)
+option('mac-address-fru-bus', type: 'integer', value: 0)
+option('mac-address-fru-addr', type: 'integer', value: 0)
