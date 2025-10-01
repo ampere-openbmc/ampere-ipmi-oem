@@ -29,8 +29,12 @@
 #include <fstream>
 #include <iostream>
 #include <utility>
+#include <com/ampere/Event/ReportedSEL/event.hpp>
+#include <phosphor-logging/commit.hpp>
 
 using namespace phosphor::logging;
+namespace ReportedErrorSEL = sdbusplus::error::com::ampere::event::ReportedSEL;
+namespace ReportedEventSEL = sdbusplus::event::com::ampere::event::ReportedSEL;
 
 using BasicVariantType =
 	std::variant<std::vector<std::string>, std::string, int64_t, uint64_t,
@@ -65,6 +69,7 @@ constexpr static const char *pldmSensorValInterface =
 constexpr static const char *pldmSensorValPro = "Value";
 constexpr static const char *pldmSensorMaxValPro = "MaxValue";
 constexpr static const char *pldmSensorMinValPro = "MinValue";
+constexpr static const char *hostSource = "Host";
 
 static inline auto response(uint8_t cc)
 {
@@ -441,7 +446,7 @@ static bool writeFruData(uint16_t busIdx, uint8_t addr,
  *  @param[in] the command
  *  @returns output of the command
  */
-std::string exec(const char *cmd)
+std::string execShellCmd(const char *cmd)
 {
 	char buffer[128];
 	std::string result = "";
@@ -499,7 +504,7 @@ ipmi::RspType<> ipmiSyncRTCTimeToBMC()
          * NTP mode is disabled.
          */
 		cmd = "systemctl status systemd-timesyncd.service | grep inactive";
-		cmdOutput = exec(cmd.c_str());
+		cmdOutput = execShellCmd(cmd.c_str());
 		if (cmdOutput.empty()) {
 			lg2::info(
 				"Can not set system time while the mode is NTP");
@@ -967,30 +972,21 @@ ipmi::RspType<> ipmiSetFWInbandUpdateStatus(ipmi::Context::ptr ctx,
 			return ipmi::responseCommandDisabled();
 		}
 
+		std::string messageStr = "Firmware In-band Update Status is " +
+					 FWUpdateStatusStr[updateStatus] +
+					 " with " + FWUpdateTypeStr[updateType];
 		/* Create the SEL log */
 		if (updateStatus == FWUpdateStarted ||
 		    updateStatus == FWUpdateSuccess) {
 			/* Create an Ampere OK SEL event */
-			std::string messageStr =
-				"Firmware In-band Update Status: " +
-				FWUpdateStatusStr[updateStatus] + " with " +
-				FWUpdateTypeStr[updateType];
-			std::string redfishMsgId("OpenBMC.0.1.AmpereEvent");
-			sd_journal_send("REDFISH_MESSAGE_ID=%s",
-					redfishMsgId.c_str(),
-					"REDFISH_MESSAGE_ARGS=%s",
-					messageStr.c_str(), NULL);
+			lg2::commit(ReportedEventSEL::ReportedSELInfo(
+				"SOURCE", hostSource, "MESSAGE", messageStr,
+				"RAW_DATA", ""));
 		} else {
 			/* Create an Ampere Warning SEL event */
-			std::string messageStr =
-				FWUpdateStatusStr[updateStatus] + " with " +
-				FWUpdateTypeStr[updateType];
-			std::string redfishMsgId("OpenBMC.0.1.AmpereWarning");
-			sd_journal_send("REDFISH_MESSAGE_ID=%s",
-					redfishMsgId.c_str(),
-					"REDFISH_MESSAGE_ARGS=%s,%s",
-					"Firmware In-band Update Status",
-					messageStr.c_str(), NULL);
+			lg2::commit(ReportedErrorSEL::ReportedSELWarning(
+				"SOURCE", hostSource, "MESSAGE", messageStr,
+				"RAW_DATA", ""));
 		}
 	} catch (const std::exception &e) {
 		lg2::error("{ERROR}", "ERROR", e);
@@ -1049,6 +1045,14 @@ ipmi::RspType<uint8_t> ipmiSetHostFWRevision(ipmi::Context::ptr ctx,
 			ipmi::setDbusProperty(*bus, hostFWService, hostFWObject,
 					      hostFWInf, "Version",
 					      hostFWRevision);
+
+			/* Create an Ampere OK SEL event */
+			std::string messageStr =
+				"Set Host Firmware Revision to " +
+				hostFWRevision;
+			lg2::commit(ReportedEventSEL::ReportedSELInfo(
+				"SOURCE", hostSource, "MESSAGE", messageStr,
+				"RAW_DATA", ""));
 
 			/* Store Host Firmware Revision to file */
 			std::ofstream hostFwFile(hostFwRevisionFs.c_str());
